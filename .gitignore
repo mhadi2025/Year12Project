@@ -1,32 +1,27 @@
-(
-echo ##############################
-echo # Visual Studio
-echo ##############################
-echo .vs/
-echo **/.vs/
-echo *.suo
-echo *.user
-echo *.userosscache
-echo *.sln.docstates
-echo
-echo ##############################
-echo # Build results
-echo ##############################
-echo bin/
-echo **/bin/
-echo obj/
-echo **/obj/
-echo
-echo ##############################
-echo # ASP.NET Core
-echo ##############################
-echo appsettings.Development.json
-echo
-echo ##############################
-echo # Logs
-echo ##############################
-echo *.log
-) > .gitignore
-*.db
-*.db-shm
-*.db-wal
+##############################
+# Visual Studio
+##############################
+.vs/
+**/.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+##############################
+# Build results
+##############################
+bin/
+**/bin/
+obj/
+**/obj/
+
+##############################
+# ASP.NET Core
+##############################
+appsettings.Development.json
+
+##############################
+# Logs
+##############################
+*.log
