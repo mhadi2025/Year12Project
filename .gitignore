@@ -1,5 +1,10 @@
-echo .vs/>> .gitignore
+echo.>> .gitignore
+echo # Build output>> .gitignore
 echo bin/>> .gitignore
 echo obj/>> .gitignore
-echo *.user>> .gitignore
-echo *.suo>> .gitignore
+echo **/bin/>> .gitignore
+echo **/obj/>> .gitignore
+echo.>> .gitignore
+echo # Visual Studio>> .gitignore
+echo .vs/>> .gitignore
+echo **/.vs/>> .gitignore
