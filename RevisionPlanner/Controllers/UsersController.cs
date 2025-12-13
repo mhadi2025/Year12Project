@@ -54,16 +54,34 @@ namespace RevisionPlanner.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("UserId,FirstName,LastName,EmailId,EmailPassword,Year")] User user)
+        public async Task<IActionResult> Create(
+    [Bind("UserId,FirstName,LastName,EmailId,EmailPassword,Year")] User user)
         {
+            // ✅ Check if email already exists
+            var emailExists = await _context.Users
+                .AnyAsync(u => u.EmailId == user.EmailId);
+
+            if (emailExists)
+            {
+                ModelState.AddModelError("EmailId", "This email is already registered.");
+                return View(user);
+            }
+
             if (ModelState.IsValid)
             {
                 _context.Add(user);
                 await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
+
+                // ✅ Success message for login page
+                TempData["SuccessMessage"] = "Account created successfully. Please sign in.";
+
+                // ✅ Redirect to Login
+                return RedirectToAction("Login", "Account");
             }
+
             return View(user);
         }
+
 
         // GET: Users/Edit/5
         public async Task<IActionResult> Edit(int? id)
