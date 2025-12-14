@@ -3,14 +3,11 @@
 @using System.Collections.Generic
 
 @{
-    ViewData["Title"] = "Create Timetable";
-
     var usedIds = ViewBag.UsedSubjectIds as List<int> ?? new List<int>();
     var usedSet = new HashSet<int>(usedIds);
 
-    // "Create" vs "Update" button label based on whether DB already had subjects
-    // (If the page loaded with 1 default empty row, Id will be 0, so it's still "Create")
     var hasExistingSubjects = Model.Subjects.Any(s => s.Id != 0);
+    ViewData["Title"] = hasExistingSubjects ? "Update Timetable" : "Create Timetable";
     var submitLabel = hasExistingSubjects ? "Update Timetable" : "Create Timetable";
 
     string DotClass(DifficultyLevel d) =>
@@ -24,22 +21,22 @@
         "border-hard";
 }
 
-<h2>Create Timetable</h2>
+<h2>@ViewData["Title"]</h2>
 <p class="text-muted mb-3">
-    Add subjects and assign difficulty using the colour indicator.
+    Add subjects, exam dates, and difficulty.
 </p>
 
 <form asp-action="Create" method="post">
     @Html.AntiForgeryToken()
 
-    <!-- show global errors (e.g., cannot delete used subjects) -->
     <div asp-validation-summary="All" class="text-danger mb-3"></div>
 
     <table class="table align-middle">
         <thead>
             <tr>
-                <th style="width:55%">Subject</th>
-                <th style="width:35%">Difficulty</th>
+                <th style="width:40%">Subject</th>
+                <th style="width:20%">Exam Date</th>
+                <th style="width:30%">Difficulty</th>
                 <th style="width:10%"></th>
             </tr>
         </thead>
@@ -53,18 +50,18 @@
                 <tr class="subject-row">
                     <td>
                         <input type="hidden" asp-for="Subjects[@i].Id" />
-                        <input asp-for="Subjects[@i].SubjectName"
-                               class="form-control"
-                               placeholder="e.g., Maths" />
+                        <input asp-for="Subjects[@i].SubjectName" class="form-control" placeholder="e.g., Maths" />
                         <span asp-validation-for="Subjects[@i].SubjectName" class="text-danger"></span>
                     </td>
 
                     <td>
+                        <input asp-for="Subjects[@i].ExamDate" type="date" class="form-control" />
+                    </td>
+
+                    <td>
                         <div class="d-flex align-items-center gap-3">
-                            <!-- colour indicator -->
                             <span class="difficulty-dot @DotClass(Model.Subjects[i].Difficulty)"></span>
 
-                            <!-- dropdown with coloured border -->
                             <select asp-for="Subjects[@i].Difficulty"
                                     class="form-select difficulty-select @BorderClass(Model.Subjects[i].Difficulty)"
                                     asp-items="Html.GetEnumSelectList<DifficultyLevel>()">
@@ -111,17 +108,15 @@
         .dot-easy {
             background: #2ecc71;
         }
-        /* green */
+
         .dot-medium {
             background: #f1c40f;
         }
-        /* yellow */
+
         .dot-hard {
             background: #e74c3c;
         }
-        /* red */
 
-        /* Dropdown border colours */
         .border-easy {
             border: 2px solid #2ecc71 !important;
         }
@@ -134,7 +129,6 @@
             border: 2px solid #e74c3c !important;
         }
 
-        /* keep focus looking nice with the coloured border */
         .difficulty-select:focus {
             box-shadow: 0 0 0 0.2rem rgba(0,0,0,.08) !important;
         }
@@ -146,7 +140,6 @@
             const addBtn = document.getElementById("addRow");
 
             function normalizeDifficultyValue(val) {
-                // Handles both "Easy" and "1" (enum numeric)
                 const v = (val ?? "").toString().toLowerCase().trim();
                 if (v === "1" || v.includes("easy")) return "easy";
                 if (v === "2" || v.includes("medium")) return "medium";
@@ -159,22 +152,17 @@
                 const dot = row.querySelector(".difficulty-dot");
                 if (!select || !dot) return;
 
-                // reset dot
                 dot.classList.remove("dot-easy", "dot-medium", "dot-hard");
-
-                // reset select border classes
                 select.classList.remove("border-easy", "border-medium", "border-hard");
 
                 const d = normalizeDifficultyValue(select.value);
                 if (d === "easy") {
                     dot.classList.add("dot-easy");
                     select.classList.add("border-easy");
-                }
-                else if (d === "medium") {
+                } else if (d === "medium") {
                     dot.classList.add("dot-medium");
                     select.classList.add("border-medium");
-                }
-                else if (d === "hard") {
+                } else if (d === "hard") {
                     dot.classList.add("dot-hard");
                     select.classList.add("border-hard");
                 }
@@ -184,9 +172,7 @@
                 applyDifficultyStyles(row);
 
                 const select = row.querySelector(".difficulty-select");
-                if (select) {
-                    select.addEventListener("change", () => applyDifficultyStyles(row));
-                }
+                if (select) select.addEventListener("change", () => applyDifficultyStyles(row));
 
                 const del = row.querySelector(".delete-row");
                 if (del) {
@@ -219,6 +205,9 @@
                         <input name="Subjects[${index}].SubjectName" class="form-control" placeholder="e.g., Science" />
                     </td>
                     <td>
+                        <input name="Subjects[${index}].ExamDate" type="date" class="form-control" />
+                    </td>
+                    <td>
                         <div class="d-flex align-items-center gap-3">
                             <span class="difficulty-dot dot-easy"></span>
                             <select name="Subjects[${index}].Difficulty"
@@ -242,7 +231,6 @@
                 wireRow(tr);
             });
 
-            // Initialise existing rows
             tbody.querySelectorAll("tr.subject-row").forEach(wireRow);
         })();
     </script>

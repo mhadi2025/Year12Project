@@ -81,7 +81,6 @@ namespace RevisionPlanner.Controllers
             }
 
             await _context.SaveChangesAsync();
-
             TempData["SuccessMessage"] = "Timetable saved successfully.";
             return RedirectToAction("Index");
         }
@@ -101,7 +100,7 @@ namespace RevisionPlanner.Controllers
                 .OrderBy(s => s.SubjectName)
                 .ToListAsync();
 
-            // ✅ NEW: find subjects already used in timetable
+            // used subjects (to disable delete button)
             var usedSubjectIds = await _context.Timetables
                 .Where(t => t.UserId == userId.Value && t.SubjectId != null)
                 .Select(t => t.SubjectId!.Value)
@@ -116,13 +115,18 @@ namespace RevisionPlanner.Controllers
                 {
                     Id = s.Id,
                     SubjectName = s.SubjectName,
-                    Difficulty = s.Difficulty
+                    Difficulty = s.Difficulty,
+                    ExamDate = s.ExamDate   // ✅ NEW
                 }).ToList()
             };
 
             if (!vm.Subjects.Any())
             {
-                vm.Subjects.Add(new SubjectRow { Difficulty = DifficultyLevel.Easy });
+                vm.Subjects.Add(new SubjectRow
+                {
+                    Difficulty = DifficultyLevel.Easy,
+                    ExamDate = null
+                });
             }
 
             return View(vm);
@@ -159,7 +163,7 @@ namespace RevisionPlanner.Controllers
                 .Where(s => !submittedIds.Contains(s.Id))
                 .ToList();
 
-            // ✅ SERVER-SIDE ENFORCEMENT
+            // Do not allow delete if referenced in timetable
             if (toDelete.Any())
             {
                 var toDeleteIds = toDelete.Select(s => s.Id).ToList();
@@ -197,7 +201,8 @@ namespace RevisionPlanner.Controllers
                     {
                         UserId = userId.Value,
                         SubjectName = row.SubjectName.Trim(),
-                        Difficulty = row.Difficulty
+                        Difficulty = row.Difficulty,
+                        ExamDate = row.ExamDate // ✅ NEW
                     });
                 }
                 else
@@ -205,6 +210,7 @@ namespace RevisionPlanner.Controllers
                     var subject = existingSubjects.First(s => s.Id == row.Id);
                     subject.SubjectName = row.SubjectName.Trim();
                     subject.Difficulty = row.Difficulty;
+                    subject.ExamDate = row.ExamDate; // ✅ NEW
                 }
             }
 

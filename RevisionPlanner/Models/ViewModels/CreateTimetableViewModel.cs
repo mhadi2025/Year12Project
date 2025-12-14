@@ -1,5 +1,4 @@
 ﻿using RevisionPlanner.Enums;
-using RevisionPlanner.Models;  
 using System.ComponentModel.DataAnnotations;
 
 namespace RevisionPlanner.Models.ViewModels
@@ -18,5 +17,8 @@ namespace RevisionPlanner.Models.ViewModels
 
         [Required]
         public DifficultyLevel Difficulty { get; set; }
+
+        [DataType(DataType.Date)]
+        public DateTime? ExamDate { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using RevisionPlanner.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace RevisionPlanner.Models
 {
@@ -11,6 +12,9 @@ namespace RevisionPlanner.Models
         public string SubjectName { get; set; } = string.Empty;
 
         public DifficultyLevel Difficulty { get; set; }
+
+        [DataType(DataType.Date)]
+        public DateTime? ExamDate { get; set; }
 
         // Navigation properties
         public User? User { get; set; }
