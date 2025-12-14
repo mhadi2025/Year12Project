@@ -4,19 +4,12 @@
 @{
     ViewData["Title"] = "View / Edit Timetable";
 
-    var days = new[] {
-        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday,
-        DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
-    };
+    var weekStart = Model.WeekStart.Date;
+    var days = Enumerable.Range(0, 7).Select(i => weekStart.AddDays(i)).ToList();
 
     string DifficultyClass(DifficultyLevel d) =>
         d == DifficultyLevel.Easy ? "diff-easy" :
         d == DifficultyLevel.Medium ? "diff-medium" : "diff-hard";
-
-    string StatusBadge(string? status) =>
-        string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase) ? "status-completed" :
-        string.Equals(status, "Incomplete", StringComparison.OrdinalIgnoreCase) ? "status-incomplete" :
-        "status-none";
 }
 
 <h2>View / Edit Timetable</h2>
@@ -25,9 +18,41 @@
 {
     <div class="alert alert-success">@TempData["SuccessMessage"]</div>
 }
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-warning">@TempData["ErrorMessage"]</div>
+}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <a class="btn btn-outline-secondary"
+       asp-action="Index"
+       asp-route-date="@Model.WeekStart.AddDays(-7).ToString("yyyy-MM-dd")">
+        ← Previous Week
+    </a>
+
+    <div class="fw-semibold">
+        Week: @Model.WeekStart.ToString("dd MMM yyyy") - @Model.WeekStart.AddDays(6).ToString("dd MMM yyyy")
+    </div>
+
+    <a class="btn btn-outline-secondary"
+       asp-action="Index"
+       asp-route-date="@Model.WeekStart.AddDays(7).ToString("yyyy-MM-dd")">
+        Next Week →
+    </a>
+
+    <form class="ms-auto d-flex gap-2" method="get" asp-action="Index">
+        <input type="date" name="date" class="form-control"
+               value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+        <button type="submit" class="btn btn-primary">Go</button>
+    </form>
+</div>
 
 <form asp-action="SaveGrid" method="post">
     @Html.AntiForgeryToken()
+
+    <input type="hidden" name="WeekStart" value="@Model.WeekStart.ToString("yyyy-MM-dd")" />
+    <input type="hidden" name="SelectedDate" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+    <input type="hidden" name="SlotsPerDay" value="@Model.SlotsPerDay" />
 
     <div class="row g-3">
         <!-- GRID -->
@@ -39,7 +64,10 @@
                             <th style="width:90px;">Slot</th>
                             @foreach (var d in days)
                             {
-                                <th>@d</th>
+                                <th>
+                                    @d.ToString("ddd")<br />
+                                    <small class="text-muted">@d.ToString("dd MMM")</small>
+                                </th>
                             }
                         </tr>
                     </thead>
@@ -52,8 +80,7 @@
 
                                 @foreach (var day in days)
                                 {
-                                    // Find cell
-                                    var cell = Model.Cells.FirstOrDefault(c => c.Day == day && c.SlotNumber == slot);
+                                    var cell = Model.Cells.FirstOrDefault(c => c.Date.Date == day.Date && c.SlotNumber == slot);
                                     if (cell == null)
                                     {
                                         <td class="text-muted">N/A</td>
@@ -65,25 +92,24 @@
 
                                     <td class="drop-cell"
                                         data-cell-index="@idx"
+                                        data-celldate="@day.ToString("yyyy-MM-dd")"
                                         ondragover="event.preventDefault();"
                                         ondrop="handleDrop(event);">
 
-                                        <!-- hidden fields for binding -->
                                         <input type="hidden" name="Cells[@idx].TimetableId" value="@cell.TimetableId" />
-                                        <input type="hidden" name="Cells[@idx].Day" value="@cell.Day" />
+                                        <input type="hidden" name="Cells[@idx].Date" value="@cell.Date.ToString("yyyy-MM-dd")" />
                                         <input type="hidden" name="Cells[@idx].SlotNumber" value="@cell.SlotNumber" />
+
                                         <input type="hidden" class="subject-id" name="Cells[@idx].SubjectId" value="@(cell.SubjectId?.ToString() ?? "")" />
                                         <input type="hidden" class="status-val" name="Cells[@idx].Status" value="@(cell.Status ?? "")" />
 
                                         <div class="cell-inner">
-                                            <!-- Subject display area -->
                                             <div class="cell-subject @((subject != null) ? DifficultyClass(subject.Difficulty) : "")">
                                                 <span class="subject-name">
                                                     @(subject != null ? subject.SubjectName : "Drop subject here")
                                                 </span>
                                             </div>
 
-                                            <!-- Status controls -->
                                             <div class="cell-status">
                                                 <button type="button"
                                                         class="status-btn btn-complete"
@@ -99,16 +125,14 @@
                                                     ✗
                                                 </button>
 
-                                                <span class="status-indicator @StatusBadge(cell.Status)">
+                                                <span class="status-indicator">
                                                     @(
                                                                                                 string.Equals(cell.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "✓" :
-                                                                                                string.Equals(cell.Status, "Incomplete", StringComparison.OrdinalIgnoreCase) ? "✗" :
-                                                                                                ""
+                                                                                                string.Equals(cell.Status, "Incomplete", StringComparison.OrdinalIgnoreCase) ? "✗" : ""
                                                                                                 )
                                                 </span>
                                             </div>
 
-                                            <!-- Clear -->
                                             <div class="mt-2">
                                                 <button type="button" class="btn btn-sm btn-outline-secondary"
                                                         onclick="clearCell(@idx)">
@@ -151,23 +175,21 @@
                                      ondragstart="handleDragStart(event)"
                                      data-subjectid="@s.Id"
                                      data-subjectname="@s.SubjectName"
-                                     data-difficulty="@s.Difficulty">
+                                     data-difficulty="@s.Difficulty"
+                                     data-examdate="@(s.ExamDate.HasValue? s.ExamDate.Value.ToString("yyyy-MM-dd") : "")">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="fw-semibold">@s.SubjectName</span>
                                         <span class="difficulty-dot"></span>
                                     </div>
-                                    <small class="text-muted">@s.Difficulty</small>
+
+                                    <small class="text-muted">
+                                        @(s.ExamDate.HasValue ? $"Exam: {s.ExamDate.Value:dd MMM yyyy}" : "Exam: not set")
+                                    </small>
                                 </div>
                             }
                         </div>
                     }
                 </div>
-            </div>
-
-            <div class="mt-3 small text-muted">
-                <div><span class="legend-dot diff-easy"></span> Easy</div>
-                <div><span class="legend-dot diff-medium"></span> Medium</div>
-                <div><span class="legend-dot diff-hard"></span> Hard</div>
             </div>
         </div>
     </div>
@@ -208,7 +230,7 @@
                 cursor: grabbing;
             }
 
-        .difficulty-dot, .legend-dot {
+        .difficulty-dot {
             width: 12px;
             height: 12px;
             border-radius: 4px;
@@ -216,12 +238,6 @@
             display: inline-block;
         }
 
-        .legend-dot {
-            margin-right: 6px;
-            vertical-align: middle;
-        }
-
-        /* Difficulty colour blocks */
         .diff-easy {
             background: rgba(46, 204, 113, .20);
         }
@@ -275,27 +291,9 @@
             font-weight: 900;
             background: #fff;
         }
-
-        .status-completed {
-            background: rgba(25, 135, 84, .20);
-        }
-
-        .status-incomplete {
-            background: rgba(220, 53, 69, .18);
-        }
-
-        .status-none {
-            background: #fff;
-        }
-
-        .drop-cell.drag-over {
-            outline: 3px dashed rgba(13,110,253,.4);
-            outline-offset: -6px;
-        }
     </style>
 
     <script>
-        // store dragged subject data
         let dragData = null;
 
         function handleDragStart(ev) {
@@ -303,7 +301,8 @@
             dragData = {
                 subjectId: el.dataset.subjectid,
                 subjectName: el.dataset.subjectname,
-                difficulty: el.dataset.difficulty
+                difficulty: el.dataset.difficulty,
+                examDate: el.dataset.examdate // yyyy-MM-dd or ""
             };
             ev.dataTransfer.effectAllowed = "copy";
         }
@@ -312,15 +311,26 @@
             ev.preventDefault();
             const td = ev.currentTarget;
             const idx = td.dataset.cellIndex;
+            const cellDateStr = td.dataset.celldate;
+
             if (!dragData || idx === undefined) return;
 
+            // ✅ Rule 5/6: do not allow past exam date
+            if (dragData.examDate) {
+                const exam = new Date(dragData.examDate + "T00:00:00");
+                const cellDate = new Date(cellDateStr + "T00:00:00");
+
+                if (cellDate > exam) {
+                    alert(`You cannot schedule "${dragData.subjectName}" after its exam date (${formatDate(exam)}).`);
+                    return;
+                }
+            }
+
             // Update hidden SubjectId
-            const subjectInput = td.querySelector("input.subject-id");
-            subjectInput.value = dragData.subjectId;
+            td.querySelector("input.subject-id").value = dragData.subjectId;
 
             // Update UI label
-            const nameSpan = td.querySelector(".subject-name");
-            nameSpan.textContent = dragData.subjectName;
+            td.querySelector(".subject-name").textContent = dragData.subjectName;
 
             // Update difficulty colouring on cell
             const cellBox = td.querySelector(".cell-subject");
@@ -335,27 +345,16 @@
             const td = document.querySelector(`td.drop-cell[data-cell-index="${idx}"]`);
             if (!td) return;
 
-            // If no subject selected, don't allow status (optional rule)
             const subjectId = td.querySelector("input.subject-id").value;
             if (!subjectId) {
                 alert("Please drop a subject first.");
                 return;
             }
 
-            // Set hidden status
             td.querySelector("input.status-val").value = status;
 
-            // Update indicator
             const indicator = td.querySelector(".status-indicator");
-            indicator.classList.remove("status-completed", "status-incomplete", "status-none");
-
-            if (status === "Completed") {
-                indicator.textContent = "✓";
-                indicator.classList.add("status-completed");
-            } else {
-                indicator.textContent = "✗";
-                indicator.classList.add("status-incomplete");
-            }
+            indicator.textContent = (status === "Completed") ? "✓" : "✗";
         }
 
         function clearCell(idx) {
@@ -365,16 +364,13 @@
             td.querySelector("input.subject-id").value = "";
             td.querySelector("input.status-val").value = "";
 
-            const nameSpan = td.querySelector(".subject-name");
-            nameSpan.textContent = "Drop subject here";
+            td.querySelector(".subject-name").textContent = "Drop subject here";
+            td.querySelector(".cell-subject").classList.remove("diff-easy", "diff-medium", "diff-hard");
+            td.querySelector(".status-indicator").textContent = "";
+        }
 
-            const cellBox = td.querySelector(".cell-subject");
-            cellBox.classList.remove("diff-easy", "diff-medium", "diff-hard");
-
-            const indicator = td.querySelector(".status-indicator");
-            indicator.textContent = "";
-            indicator.classList.remove("status-completed", "status-incomplete");
-            indicator.classList.add("status-none");
+        function formatDate(d) {
+            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
         }
     </script>
 }
