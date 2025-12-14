@@ -10,6 +10,9 @@
     string DifficultyClass(DifficultyLevel d) =>
         d == DifficultyLevel.Easy ? "diff-easy" :
         d == DifficultyLevel.Medium ? "diff-medium" : "diff-hard";
+
+    bool ExamPassed(DateTime? examDate) =>
+        examDate.HasValue && examDate.Value.Date < DateTime.Today.Date;
 }
 
 <h2>View / Edit Timetable</h2>
@@ -89,10 +92,12 @@
 
                                     var idx = Model.Cells.IndexOf(cell);
                                     var subject = Model.Subjects.FirstOrDefault(s => s.Id == cell.SubjectId);
+                                    var isEmpty = (subject == null);
 
                                     <td class="drop-cell"
                                         data-cell-index="@idx"
                                         data-celldate="@day.ToString("yyyy-MM-dd")"
+                                        title="@(isEmpty ? "Drop subject here" : "")"
                                         ondragover="event.preventDefault();"
                                         ondrop="handleDrop(event);">
 
@@ -103,10 +108,7 @@
                                         <input type="hidden" class="subject-id" name="Cells[@idx].SubjectId" value="@(cell.SubjectId?.ToString() ?? "")" />
                                         <input type="hidden" class="status-val" name="Cells[@idx].Status" value="@(cell.Status ?? "")" />
 
-                                        <!-- Compact subject box (all controls inside) -->
                                         <div class="subject-box @((subject != null) ? DifficultyClass(subject.Difficulty) : "")">
-
-                                            <!-- Top row: Clear button (top-right) -->
                                             <div class="subject-box-top">
                                                 <button type="button"
                                                         class="btn-clear"
@@ -116,12 +118,11 @@
                                                 </button>
                                             </div>
 
-                                            <!-- Subject name: left aligned under clear -->
+                                            <!-- no "Drop subject here" text -->
                                             <div class="subject-name">
-                                                @(subject != null ? subject.SubjectName : "Drop subject here")
+                                                @(subject != null ? subject.SubjectName : "")
                                             </div>
 
-                                            <!-- Status: bottom-right, click-to-cycle -->
                                             <button type="button"
                                                     class="status-pill"
                                                     title="Click to change status"
@@ -163,6 +164,8 @@
                         <div class="d-grid gap-2">
                             @foreach (var s in Model.Subjects)
                             {
+                                var examPassed = ExamPassed(s.ExamDate);
+
                                 int? daysToExam = s.ExamDate.HasValue
                                 ? (int?)(s.ExamDate.Value.Date - DateTime.Today.Date).TotalDays
                                 : null;
@@ -179,7 +182,7 @@
                                 daysToExam.Value == 1 ? "Exam in 1 day" :
                                 $"Exam in {daysToExam.Value} days";
 
-                                <div class="subject-card @DifficultyClass(s.Difficulty)"
+                                <div class="subject-card @DifficultyClass(s.Difficulty) @(examPassed ? "subject-passed" : "")"
                                      draggable="true"
                                      ondragstart="handleDragStart(event)"
                                      data-subjectid="@s.Id"
@@ -193,13 +196,23 @@
 
                                     <div class="subject-card-sub">
                                         <span>@(s.ExamDate.HasValue ? $"Exam: {s.ExamDate.Value:dd MMM yyyy}" : "Exam: not set")</span>
-                                        @if (daysToExam.HasValue && daysToExam.Value >= 0 && daysToExam.Value <= 7)
+
+                                        @if (examPassed)
+                                        {
+                                            <span class="exam-badge badge-passed">Exam passed</span>
+                                        }
+                                        else if (daysToExam.HasValue && daysToExam.Value >= 0 && daysToExam.Value <= 7)
                                         {
                                             <span class="exam-badge @badgeClass">@badgeText</span>
                                         }
                                     </div>
                                 </div>
                             }
+                        </div>
+
+                        <!-- Hint moved here -->
+                        <div class="mt-3 small text-muted">
+                            Tip: Drag a subject from above and drop it into a timetable cell.
                         </div>
                     }
                 </div>
@@ -241,7 +254,7 @@
             text-align: left;
         }
 
-        /* Difficulty background tint */
+        /* Difficulty tint */
         .diff-easy {
             background: rgba(46, 204, 113, .16);
         }
@@ -254,7 +267,7 @@
             background: rgba(231, 76, 60, .16);
         }
 
-        /* Top-right clear button */
+        /* Clear button top-right */
         .subject-box-top {
             display: flex;
             justify-content: flex-end;
@@ -273,14 +286,15 @@
             cursor: pointer;
         }
 
-        /* Subject name: left aligned, not bold */
+        /* Subject name left aligned, no bold */
         .subject-name {
-            padding-right: 28px; /* space for clear */
+            padding-right: 28px;
             color: rgba(0,0,0,.85);
             line-height: 1.1;
+            min-height: 14px; /* keeps layout stable when empty */
         }
 
-        /* Status: small, bottom-right inside box */
+        /* Status bottom-right */
         .status-pill {
             position: absolute;
             right: 6px;
@@ -297,7 +311,7 @@
             text-align: center;
         }
 
-        /* Subject panel: reduce font and padding */
+        /* Subject panel (smaller font) */
         .subject-card {
             border: 1px solid rgba(0,0,0,.12);
             border-radius: 12px;
@@ -348,6 +362,7 @@
             background: #e74c3c;
         }
 
+        /* Exam badges */
         .exam-badge {
             padding: 2px 6px;
             border-radius: 999px;
@@ -365,6 +380,16 @@
         .badge-upcoming {
             background: rgba(241,196,15,.25);
         }
+
+        /* Exam passed styling: grey */
+        .subject-passed {
+            opacity: 0.55;
+            filter: grayscale(1);
+        }
+
+        .badge-passed {
+            background: rgba(120,120,120,.18);
+        }
     </style>
 
     <script>
@@ -376,7 +401,7 @@
                 subjectId: el.dataset.subjectid,
                 subjectName: el.dataset.subjectname,
                 difficulty: el.dataset.difficulty,
-                examDate: el.dataset.examdate // yyyy-MM-dd or ""
+                examDate: el.dataset.examdate
             };
             ev.dataTransfer.effectAllowed = "copy";
         }
@@ -389,7 +414,7 @@
 
             if (!dragData || idx === undefined) return;
 
-            // Do not allow scheduling AFTER exam date (subjects without exam date are allowed)
+            // Do not allow scheduling AFTER exam date (no exam date => allowed)
             if (dragData.examDate) {
                 const exam = new Date(dragData.examDate + "T00:00:00");
                 const cellDate = new Date(cellDateStr + "T00:00:00");
@@ -402,16 +427,19 @@
 
             td.querySelector("input.subject-id").value = dragData.subjectId;
 
-            // Set name
+            // set subject name (empty cells are blank)
             td.querySelector(".subject-name").textContent = dragData.subjectName;
 
-            // Set difficulty style on subject box
+            // difficulty colour
             const box = td.querySelector(".subject-box");
             box.classList.remove("diff-easy", "diff-medium", "diff-hard");
             const d = (dragData.difficulty || "").toLowerCase();
             if (d.includes("easy")) box.classList.add("diff-easy");
             else if (d.includes("medium")) box.classList.add("diff-medium");
             else if (d.includes("hard")) box.classList.add("diff-hard");
+
+            // remove tooltip once filled
+            td.title = "";
         }
 
         // Cycle: blank -> Completed(✓) -> Incomplete(✗) -> blank
@@ -435,7 +463,6 @@
             else next = "";
 
             statusInput.value = next;
-
             btn.textContent = (next === "Completed") ? "✓" : (next === "Incomplete") ? "✗" : "";
         }
 
@@ -446,12 +473,15 @@
             td.querySelector("input.subject-id").value = "";
             td.querySelector("input.status-val").value = "";
 
-            td.querySelector(".subject-name").textContent = "Drop subject here";
+            td.querySelector(".subject-name").textContent = "";
 
             const box = td.querySelector(".subject-box");
             box.classList.remove("diff-easy", "diff-medium", "diff-hard");
 
             td.querySelector(".status-pill").textContent = "";
+
+            // restore tooltip on empty
+            td.title = "Drop subject here";
         }
 
         function formatDate(d) {
