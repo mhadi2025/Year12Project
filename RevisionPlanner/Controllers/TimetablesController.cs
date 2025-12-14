@@ -29,13 +29,58 @@ namespace RevisionPlanner.Controllers
             if (userId == null)
                 return RedirectToAction("Login", "Account");
 
-            var timetable = await _context.Timetables
-                .Include(t => t.Subject)
-                .Where(t => t.UserId == userId.Value)
+            var subjects = await _context.Subjects
+                .Where(s => s.UserId == userId.Value)
+                .OrderBy(s => s.SubjectName)
                 .ToListAsync();
 
-            return View(timetable);
+            var cells = await _context.Timetables
+                .Where(t => t.UserId == userId.Value && t.SlotNumber != null)
+                .OrderBy(t => t.TimeTableDay)
+                .ThenBy(t => t.SlotNumber)
+                .Select(t => new RevisionPlanner.Models.ViewModels.TimetableCell
+                {
+                    TimetableId = t.Id,
+                    Day = t.TimeTableDay,
+                    SlotNumber = t.SlotNumber ?? 0,
+                    SubjectId = t.SubjectId,
+                    Status = t.Status
+                })
+                .ToListAsync();
+
+            var vm = new RevisionPlanner.Models.ViewModels.TimetableGridViewModel
+            {
+                Subjects = subjects,
+                Cells = cells,
+                SlotsPerDay = 8
+            };
+
+            return View(vm);
         }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveGrid(RevisionPlanner.Models.ViewModels.TimetableGridViewModel vm)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+                return RedirectToAction("Login", "Account");
+
+            foreach (var cell in vm.Cells)
+            {
+                var row = await _context.Timetables.FirstOrDefaultAsync(t => t.Id == cell.TimetableId && t.UserId == userId.Value);
+                if (row != null)
+                {
+                    row.SubjectId = cell.SubjectId;
+                    row.Status = cell.Status;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = "Timetable saved successfully.";
+            return RedirectToAction("Index");
+        }
+
 
         // =======================
         // CREATE TIMETABLE

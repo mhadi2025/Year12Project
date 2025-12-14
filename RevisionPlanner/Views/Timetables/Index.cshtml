@@ -1,0 +1,107 @@
+﻿@model RevisionPlanner.Models.ViewModels.TimetableGridViewModel
+
+@{
+    ViewData["Title"] = "View / Edit Timetable";
+    var days = new[] {
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday,
+        DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
+    };
+}
+
+<h2>View / Edit Timetable</h2>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+
+<form asp-action="SaveGrid" method="post">
+    @Html.AntiForgeryToken()
+
+    <div class="row g-3">
+        <!-- Timetable Grid -->
+        <div class="col-12 col-lg-9">
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:90px;">Slot</th>
+                            @foreach (var d in days)
+                            {
+                                <th>@d</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int slot = 1; slot <= Model.SlotsPerDay; slot++)
+                        {
+                            <tr>
+                                <th class="table-light">#@slot</th>
+
+                                @foreach (var day in days)
+                                {
+                                    var cell = Model.Cells.FirstOrDefault(c => c.Day == day && c.SlotNumber == slot);
+
+                                    <td>
+                                        @if (cell != null)
+                                        {
+                                            <input type="hidden" name="Cells[@Model.Cells.IndexOf(cell)].TimetableId" value="@cell.TimetableId" />
+                                            <input type="hidden" name="Cells[@Model.Cells.IndexOf(cell)].Day" value="@cell.Day" />
+                                            <input type="hidden" name="Cells[@Model.Cells.IndexOf(cell)].SlotNumber" value="@cell.SlotNumber" />
+
+                                            <select class="form-select"
+                                                    name="Cells[@Model.Cells.IndexOf(cell)].SubjectId">
+                                                <option value="">-- Select --</option>
+                                                @foreach (var s in Model.Subjects)
+                                                {
+                                                    <option value="@s.Id" selected="@(cell.SubjectId == s.Id)">
+                                                        @s.SubjectName
+                                                    </option>
+                                                }
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">N/A</span>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                Save Timetable
+            </button>
+        </div>
+
+        <!-- Subject list -->
+        <div class="col-12 col-lg-3">
+            <div class="card">
+                <div class="card-header">
+                    Subjects
+                </div>
+                <div class="card-body">
+                    @if (!Model.Subjects.Any())
+                    {
+                        <p class="text-muted mb-0">No subjects found. Create subjects first.</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group">
+                            @foreach (var s in Model.Subjects)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>@s.SubjectName</span>
+                                    <span class="badge bg-secondary">@s.Difficulty</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
