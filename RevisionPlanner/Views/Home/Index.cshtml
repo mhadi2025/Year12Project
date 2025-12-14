@@ -1,8 +1,16 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Home";
+    var userName = Context.Session.GetString("UserName") ?? "Student";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="text-center mt-4">
+    <h1 class="display-5">Welcome, @userName 👋</h1>
+    <p class="lead">Plan smarter. Revise better. Stay ahead.</p>
+</div>
+
+<div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
+    <img src="~/images/study-centre.png"
+         class="img-fluid"
+         style="max-height: 450px;"
+         alt="Study illustration" />
 </div>

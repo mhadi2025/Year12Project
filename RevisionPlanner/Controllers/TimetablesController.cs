@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using RevisionPlanner.Data;
+using RevisionPlanner.Enums;
 using RevisionPlanner.Models;
+using RevisionPlanner.Models.ViewModels;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace RevisionPlanner.Controllers
 {
@@ -19,147 +20,151 @@ namespace RevisionPlanner.Controllers
             _context = context;
         }
 
-        // GET: Timetables
+        // =======================
+        // View / Edit Timetable
+        // =======================
         public async Task<IActionResult> Index()
         {
-            var revisionPlannerDbContext = _context.Timetables.Include(t => t.Subject).Include(t => t.User);
-            return View(await revisionPlannerDbContext.ToListAsync());
-        }
-
-        // GET: Timetables/Details/5
-        public async Task<IActionResult> Details(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+                return RedirectToAction("Login", "Account");
 
             var timetable = await _context.Timetables
                 .Include(t => t.Subject)
-                .Include(t => t.User)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (timetable == null)
-            {
-                return NotFound();
-            }
+                .Where(t => t.UserId == userId.Value)
+                .ToListAsync();
 
             return View(timetable);
         }
 
-        // GET: Timetables/Create
-        public IActionResult Create()
+        // =======================
+        // CREATE TIMETABLE
+        // =======================
+        [HttpGet]
+        public async Task<IActionResult> Create()
         {
-            ViewData["SubjectId"] = new SelectList(_context.Subjects, "Id", "Id");
-            ViewData["UserId"] = new SelectList(_context.Users, "UserId", "UserId");
-            return View();
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+                return RedirectToAction("Login", "Account");
+
+            var existingSubjects = await _context.Subjects
+                .Where(s => s.UserId == userId.Value)
+                .OrderBy(s => s.SubjectName)
+                .ToListAsync();
+
+            var vm = new CreateTimetableViewModel
+            {
+                Subjects = existingSubjects.Select(s => new SubjectRow
+                {
+                    Id = s.Id,
+                    SubjectName = s.SubjectName,
+                    Difficulty = s.Difficulty
+                }).ToList()
+            };
+
+            if (!vm.Subjects.Any())
+            {
+                vm.Subjects.Add(new SubjectRow
+                {
+                    Difficulty = DifficultyLevel.Easy
+                });
+            }
+
+            return View(vm);
         }
 
-        // POST: Timetables/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,UserId,TimeTableDay,SlotNumber,SubjectId,Status")] Timetable timetable)
+        public async Task<IActionResult> Create(CreateTimetableViewModel vm)
         {
-            if (ModelState.IsValid)
-            {
-                _context.Add(timetable);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
-            }
-            ViewData["SubjectId"] = new SelectList(_context.Subjects, "Id", "Id", timetable.SubjectId);
-            ViewData["UserId"] = new SelectList(_context.Users, "UserId", "UserId", timetable.UserId);
-            return View(timetable);
-        }
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (userId == null)
+                return RedirectToAction("Login", "Account");
 
-        // GET: Timetables/Edit/5
-        public async Task<IActionResult> Edit(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            vm.Subjects = vm.Subjects
+                .Where(s => !string.IsNullOrWhiteSpace(s.SubjectName))
+                .ToList();
 
-            var timetable = await _context.Timetables.FindAsync(id);
-            if (timetable == null)
-            {
-                return NotFound();
-            }
-            ViewData["SubjectId"] = new SelectList(_context.Subjects, "Id", "Id", timetable.SubjectId);
-            ViewData["UserId"] = new SelectList(_context.Users, "UserId", "UserId", timetable.UserId);
-            return View(timetable);
-        }
+            if (!ModelState.IsValid)
+                return View(vm);
 
-        // POST: Timetables/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,UserId,TimeTableDay,SlotNumber,SubjectId,Status")] Timetable timetable)
-        {
-            if (id != timetable.Id)
-            {
-                return NotFound();
-            }
+            var existingSubjects = await _context.Subjects
+                .Where(s => s.UserId == userId.Value)
+                .ToListAsync();
 
-            if (ModelState.IsValid)
+            var submittedIds = vm.Subjects
+                .Where(s => s.Id != 0)
+                .Select(s => s.Id)
+                .ToHashSet();
+
+            var toDelete = existingSubjects
+                .Where(s => !submittedIds.Contains(s.Id))
+                .ToList();
+
+            if (toDelete.Any())
+                _context.Subjects.RemoveRange(toDelete);
+
+            foreach (var row in vm.Subjects)
             {
-                try
+                if (row.Id == 0)
                 {
-                    _context.Update(timetable);
-                    await _context.SaveChangesAsync();
+                    _context.Subjects.Add(new Subject
+                    {
+                        UserId = userId.Value,
+                        SubjectName = row.SubjectName.Trim(),
+                        Difficulty = row.Difficulty
+                    });
                 }
-                catch (DbUpdateConcurrencyException)
+                else
                 {
-                    if (!TimetableExists(timetable.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
+                    var subject = existingSubjects.First(s => s.Id == row.Id);
+                    subject.SubjectName = row.SubjectName.Trim();
+                    subject.Difficulty = row.Difficulty;
                 }
-                return RedirectToAction(nameof(Index));
-            }
-            ViewData["SubjectId"] = new SelectList(_context.Subjects, "Id", "Id", timetable.SubjectId);
-            ViewData["UserId"] = new SelectList(_context.Users, "UserId", "UserId", timetable.UserId);
-            return View(timetable);
-        }
-
-        // GET: Timetables/Delete/5
-        public async Task<IActionResult> Delete(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var timetable = await _context.Timetables
-                .Include(t => t.Subject)
-                .Include(t => t.User)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (timetable == null)
-            {
-                return NotFound();
-            }
-
-            return View(timetable);
-        }
-
-        // POST: Timetables/Delete/5
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
-        {
-            var timetable = await _context.Timetables.FindAsync(id);
-            if (timetable != null)
-            {
-                _context.Timetables.Remove(timetable);
             }
 
             await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+
+            // =======================
+            // Initialise Timetable Grid (ONCE)
+            // =======================
+            const int slotsPerDay = 8;
+
+            var days = new[]
+            {
+                DayOfWeek.Monday,
+                DayOfWeek.Tuesday,
+                DayOfWeek.Wednesday,
+                DayOfWeek.Thursday,
+                DayOfWeek.Friday,
+                DayOfWeek.Saturday,
+                DayOfWeek.Sunday
+            };
+
+            var hasSlots = await _context.Timetables
+                .AnyAsync(t => t.UserId == userId.Value);
+
+            if (!hasSlots)
+            {
+                foreach (var day in days)
+                {
+                    for (int slot = 1; slot <= slotsPerDay; slot++)
+                    {
+                        _context.Timetables.Add(new Timetable
+                        {
+                            UserId = userId.Value,
+                            TimeTableDay = day,
+                            SlotNumber = slot,
+                            SubjectId = null,
+                            Status = null
+                        });
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+            }
+
+            return RedirectToAction("Index", "Timetables");
         }
 
         private bool TimetableExists(int id)

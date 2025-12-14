@@ -1,53 +1,104 @@
 ﻿@model RevisionPlanner.Models.User
 
 @{
-    ViewData["Title"] = "Create";
+    ViewData["Title"] = "Sign up";
+    Layout = "_AuthLayout";
 }
 
-<h1>Create</h1>
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4 p-md-5">
 
-<h4>User</h4>
-<hr />
-<div class="row">
-    <div class="col-md-4">
-        <form asp-action="Create">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <div class="form-group">
-                <label asp-for="FirstName" class="control-label"></label>
-                <input asp-for="FirstName" class="form-control" />
-                <span asp-validation-for="FirstName" class="text-danger"></span>
+        <div class="text-center mb-4">
+            <div class="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle"
+                 style="width:64px;height:64px;background:rgba(25,135,84,.12);">
+                <span style="font-size:28px;">✨</span>
             </div>
-            <div class="form-group">
-                <label asp-for="LastName" class="control-label"></label>
-                <input asp-for="LastName" class="form-control" />
-                <span asp-validation-for="LastName" class="text-danger"></span>
+            <h1 class="h3 mb-1">Create your account</h1>
+            <p class="text-muted mb-0">Start planning your revision in minutes</p>
+        </div>
+
+        <form asp-action="Create" method="post" novalidate>
+            @Html.AntiForgeryToken()
+
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label asp-for="FirstName" class="form-label">First name</label>
+                    <input asp-for="FirstName" class="form-control form-control-lg" placeholder="First name" />
+                    <span asp-validation-for="FirstName" class="text-danger"></span>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label asp-for="LastName" class="form-label">Last name</label>
+                    <input asp-for="LastName" class="form-control form-control-lg" placeholder="Last name" />
+                    <span asp-validation-for="LastName" class="text-danger"></span>
+                </div>
+
+                <div class="col-12">
+                    <label asp-for="EmailId" class="form-label">Email</label>
+                    <input asp-for="EmailId" class="form-control form-control-lg" placeholder="name@example.com" />
+                    <span asp-validation-for="EmailId" class="text-danger"></span>
+                </div>
+
+                <div class="col-12">
+                    <label asp-for="EmailPassword" class="form-label">Password</label>
+
+                    <div class="input-group input-group-lg">
+                        <input asp-for="EmailPassword"
+                               id="signupPassword"
+                               type="password"
+                               class="form-control"
+                               placeholder="Create a password" />
+
+                        <button class="btn btn-outline-secondary"
+                                type="button"
+                                id="toggleSignupPassword"
+                                aria-label="Show or hide password">
+                            👁️
+                        </button>
+                    </div>
+
+                    <span asp-validation-for="EmailPassword" class="text-danger"></span>
+                </div>
+
+                <div class="col-12">
+                    <label asp-for="Year" class="form-label">Year</label>
+                    <input asp-for="Year" class="form-control form-control-lg" placeholder="e.g., 10, 11, 12" />
+                    <span asp-validation-for="Year" class="text-danger"></span>
+                </div>
             </div>
-            <div class="form-group">
-                <label asp-for="EmailId" class="control-label"></label>
-                <input asp-for="EmailId" class="form-control" />
-                <span asp-validation-for="EmailId" class="text-danger"></span>
-            </div>
-            <div class="form-group">
-                <label asp-for="EmailPassword" class="control-label"></label>
-                <input asp-for="EmailPassword" class="form-control" />
-                <span asp-validation-for="EmailPassword" class="text-danger"></span>
-            </div>
-            <div class="form-group">
-                <label asp-for="Year" class="control-label"></label>
-                <input asp-for="Year" class="form-control" />
-                <span asp-validation-for="Year" class="text-danger"></span>
-            </div>
-            <div class="form-group">
-                <input type="submit" value="Create" class="btn btn-primary" />
+
+            <button type="submit" class="btn btn-success btn-lg w-100 mt-4">
+                Create account
+            </button>
+
+            <div class="text-center mt-3">
+                <a asp-controller="Account" asp-action="Login" class="text-decoration-none">
+                    ← Back to Login
+                </a>
             </div>
         </form>
     </div>
 </div>
 
-<div>
-    <a asp-action="Index">Back to List</a>
-</div>
-
 @section Scripts {
-    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        (function () {
+            const input = document.getElementById('signupPassword');
+            const btn = document.getElementById('toggleSignupPassword');
+
+            if (!input || !btn) return;
+
+            btn.addEventListener('click', function () {
+                const isPassword = input.getAttribute('type') === 'password';
+                input.setAttribute('type', isPassword ? 'text' : 'password');
+
+                // Optional: change icon to give feedback
+                btn.textContent = isPassword ? '🙈' : '👁️';
+            });
+        })();
+    </script>
 }

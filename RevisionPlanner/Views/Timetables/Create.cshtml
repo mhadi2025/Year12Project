@@ -1,0 +1,165 @@
+﻿@model RevisionPlanner.Models.ViewModels.CreateTimetableViewModel
+@using RevisionPlanner.Enums
+
+@{
+    ViewData["Title"] = "Create Timetable";
+}
+
+<h2>Create Timetable</h2>
+<p class="text-muted mb-3">
+    Add subjects and assign difficulty using the colour indicator.
+</p>
+
+<form asp-action="Create" method="post">
+    @Html.AntiForgeryToken()
+
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th style="width:55%">Subject</th>
+                <th style="width:35%">Difficulty</th>
+                <th style="width:10%"></th>
+            </tr>
+        </thead>
+
+        <tbody id="subjectRows">
+            @for (int i = 0; i < Model.Subjects.Count; i++)
+            {
+                <tr class="subject-row">
+                    <td>
+                        <input type="hidden" asp-for="Subjects[@i].Id" />
+                        <input asp-for="Subjects[@i].SubjectName"
+                               class="form-control"
+                               placeholder="e.g. Maths" />
+                    </td>
+
+                    <td>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="difficulty-dot"></span>
+
+                            <select asp-for="Subjects[@i].Difficulty"
+                                    class="form-select difficulty-select"
+                                    asp-items="Html.GetEnumSelectList<DifficultyLevel>()">
+                            </select>
+                        </div>
+                    </td>
+
+                    <td class="text-end">
+                        <button type="button"
+                                class="btn btn-outline-danger btn-sm delete-row">
+                            ✕
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="d-flex gap-2">
+        <button type="button" id="addRow" class="btn btn-secondary">
+            + Add Subject
+        </button>
+
+        <button type="submit" class="btn btn-primary">
+            Create Timetable
+        </button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <style>
+        .difficulty-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            border: 1px solid rgba(0,0,0,.15);
+            display: inline-block;
+        }
+
+        .dot-easy {
+            background: #2ecc71;
+        }
+
+        .dot-medium {
+            background: #f1c40f;
+        }
+
+        .dot-hard {
+            background: #e74c3c;
+        }
+    </style>
+
+    <script>
+        (function () {
+            const tbody = document.getElementById("subjectRows");
+            const addBtn = document.getElementById("addRow");
+
+            function setColour(row) {
+                const select = row.querySelector(".difficulty-select");
+                const dot = row.querySelector(".difficulty-dot");
+                dot.className = "difficulty-dot";
+
+                if (select.value.includes("Easy")) dot.classList.add("dot-easy");
+                if (select.value.includes("Medium")) dot.classList.add("dot-medium");
+                if (select.value.includes("Hard")) dot.classList.add("dot-hard");
+            }
+
+            function wireRow(row) {
+                setColour(row);
+
+                row.querySelector(".difficulty-select")
+                    .addEventListener("change", () => setColour(row));
+
+                row.querySelector(".delete-row")
+                    .addEventListener("click", () => {
+                        row.remove();
+                        reindex();
+                    });
+            }
+
+            function reindex() {
+                tbody.querySelectorAll(".subject-row").forEach((row, i) => {
+                    row.querySelectorAll("input, select").forEach(el => {
+                        el.name = el.name.replace(/Subjects\[\d+\]/, `Subjects[${i}]`);
+                    });
+                });
+            }
+
+            addBtn.addEventListener("click", () => {
+                const index = tbody.children.length;
+
+                const row = document.createElement("tr");
+                row.className = "subject-row";
+                row.innerHTML = `
+                    <td>
+                        <input type="hidden" name="Subjects[${index}].Id" value="0" />
+                        <input name="Subjects[${index}].SubjectName" class="form-control" />
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="difficulty-dot"></span>
+                            <select name="Subjects[${index}].Difficulty"
+                                    class="form-select difficulty-select">
+                                <option>Easy</option>
+                                <option>Medium</option>
+                                <option>Hard</option>
+                            </select>
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <button type="button"
+                                class="btn btn-outline-danger btn-sm delete-row">✕</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+                wireRow(row);
+            });
+
+            tbody.querySelectorAll(".subject-row").forEach(wireRow);
+        })();
+    </script>
+}

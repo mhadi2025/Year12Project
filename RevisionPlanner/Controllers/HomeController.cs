@@ -6,8 +6,15 @@ namespace RevisionPlanner.Controllers
 {
     public class HomeController : Controller
     {
+        //public IActionResult Index()
+        //{
+        //    return View();
+        //}
         public IActionResult Index()
         {
+            if (HttpContext.Session.GetInt32("UserId") == null)
+                return RedirectToAction("Login", "Account");
+
             return View();
         }
 

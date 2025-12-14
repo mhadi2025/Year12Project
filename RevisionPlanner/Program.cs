@@ -7,6 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 // MVC
 builder.Services.AddControllersWithViews();
 
+builder.Services.AddHttpContextAccessor();
+
 // EF Core DbContext
 builder.Services.AddDbContext<RevisionPlannerDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
