@@ -1,0 +1,53 @@
+﻿@model IEnumerable<RevisionPlanner.Models.Resource>
+
+@{
+    ViewData["Title"] = "Resources";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Resources</h2>
+    <a class="btn btn-primary" asp-action="Create">+ Add Resource</a>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+}
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">No resources yet. Click <b>Add Resource</b> to create one.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Title</th>
+                    <th>URL</th>
+                    <th class="text-end" style="width:180px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model)
+                {
+                    <tr>
+                        <td>@(r.Subject?.SubjectName ?? "-")</td>
+                        <td>@r.Title</td>
+                        <td>
+                            <a href="@r.Url" target="_blank" rel="noopener noreferrer">
+                                @r.Url
+                            </a>
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@r.Id">Edit</a>
+                            <a class="btn btn-sm btn-outline-danger" asp-action="Delete" asp-route-id="@r.Id">Delete</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

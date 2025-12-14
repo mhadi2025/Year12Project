@@ -35,8 +35,8 @@
         <thead>
             <tr>
                 <th style="width:40%">Subject</th>
-                <th style="width:20%">Exam Date</th>
-                <th style="width:30%">Difficulty</th>
+                <th style="width:25%">Exam Date</th>
+                <th style="width:25%">Difficulty</th>
                 <th style="width:10%"></th>
             </tr>
         </thead>
@@ -47,6 +47,21 @@
                 var subjectId = Model.Subjects[i].Id;
                 var isUsed = subjectId != 0 && usedSet.Contains(subjectId);
 
+                int? daysToExamRow = Model.Subjects[i].ExamDate.HasValue
+                ? (int?)(Model.Subjects[i].ExamDate.Value.Date - DateTime.Today.Date).TotalDays
+                : null;
+
+                string rowBadgeClass =
+                daysToExamRow.HasValue && daysToExamRow.Value <= 2 ? "badge-soon" :
+                daysToExamRow.HasValue && daysToExamRow.Value <= 7 ? "badge-upcoming" : "";
+
+                string rowBadgeText =
+                !daysToExamRow.HasValue ? "" :
+                daysToExamRow.Value < 0 ? "Exam passed" :
+                daysToExamRow.Value == 0 ? "Exam today" :
+                daysToExamRow.Value == 1 ? "Exam in 1 day" :
+                $"Exam in {daysToExamRow.Value} days";
+
                 <tr class="subject-row">
                     <td>
                         <input type="hidden" asp-for="Subjects[@i].Id" />
@@ -55,7 +70,13 @@
                     </td>
 
                     <td>
-                        <input asp-for="Subjects[@i].ExamDate" type="date" class="form-control" />
+                        <div class="d-flex gap-2 align-items-center">
+                            <input asp-for="Subjects[@i].ExamDate" type="date" class="form-control" />
+                            @if (daysToExamRow.HasValue && daysToExamRow.Value >= 0 && daysToExamRow.Value <= 7)
+                            {
+                                <span class="exam-badge @rowBadgeClass">@rowBadgeText</span>
+                            }
+                        </div>
                     </td>
 
                     <td>
@@ -131,6 +152,24 @@
 
         .difficulty-select:focus {
             box-shadow: 0 0 0 0.2rem rgba(0,0,0,.08) !important;
+        }
+
+        .exam-badge {
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(0,0,0,.12);
+            font-weight: 700;
+            font-size: 12px;
+            background: #fff;
+            white-space: nowrap;
+        }
+
+        .badge-soon {
+            background: rgba(220,53,69,.18);
+        }
+
+        .badge-upcoming {
+            background: rgba(241,196,15,.25);
         }
     </style>
 

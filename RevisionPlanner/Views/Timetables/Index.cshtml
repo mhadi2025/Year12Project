@@ -170,6 +170,22 @@
                         <div class="d-grid gap-2">
                             @foreach (var s in Model.Subjects)
                             {
+                                int? daysToExam = s.ExamDate.HasValue
+                                ? (int?)(s.ExamDate.Value.Date - DateTime.Today.Date).TotalDays
+                                : null;
+
+                                string badgeClass =
+                                daysToExam.HasValue && daysToExam.Value <= 2 ? "badge-soon" :
+                                daysToExam.HasValue && daysToExam.Value <= 7 ? "badge-upcoming" :
+                                "";
+
+                                string badgeText =
+                                !daysToExam.HasValue ? "" :
+                                daysToExam.Value < 0 ? "Exam passed" :
+                                daysToExam.Value == 0 ? "Exam today" :
+                                daysToExam.Value == 1 ? "Exam in 1 day" :
+                                $"Exam in {daysToExam.Value} days";
+
                                 <div class="subject-card @DifficultyClass(s.Difficulty)"
                                      draggable="true"
                                      ondragstart="handleDragStart(event)"
@@ -182,8 +198,12 @@
                                         <span class="difficulty-dot"></span>
                                     </div>
 
-                                    <small class="text-muted">
-                                        @(s.ExamDate.HasValue ? $"Exam: {s.ExamDate.Value:dd MMM yyyy}" : "Exam: not set")
+                                    <small class="text-muted d-flex justify-content-between align-items-center">
+                                        <span>@(s.ExamDate.HasValue ? $"Exam: {s.ExamDate.Value:dd MMM yyyy}" : "Exam: not set")</span>
+                                        @if (daysToExam.HasValue && daysToExam.Value >= 0 && daysToExam.Value <= 7)
+                                        {
+                                            <span class="exam-badge @badgeClass">@badgeText</span>
+                                        }
                                     </small>
                                 </div>
                             }
@@ -291,6 +311,24 @@
             font-weight: 900;
             background: #fff;
         }
+
+        .exam-badge {
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(0,0,0,.12);
+            font-weight: 700;
+            font-size: 12px;
+            background: #fff;
+            white-space: nowrap;
+        }
+
+        .badge-soon {
+            background: rgba(220,53,69,.18);
+        }
+
+        .badge-upcoming {
+            background: rgba(241,196,15,.25);
+        }
     </style>
 
     <script>
@@ -315,7 +353,7 @@
 
             if (!dragData || idx === undefined) return;
 
-            // ✅ Rule 5/6: do not allow past exam date
+            // Rule: do not allow scheduling AFTER exam date (subjects without exam date are allowed)
             if (dragData.examDate) {
                 const exam = new Date(dragData.examDate + "T00:00:00");
                 const cellDate = new Date(cellDateStr + "T00:00:00");
@@ -326,13 +364,9 @@
                 }
             }
 
-            // Update hidden SubjectId
             td.querySelector("input.subject-id").value = dragData.subjectId;
-
-            // Update UI label
             td.querySelector(".subject-name").textContent = dragData.subjectName;
 
-            // Update difficulty colouring on cell
             const cellBox = td.querySelector(".cell-subject");
             cellBox.classList.remove("diff-easy", "diff-medium", "diff-hard");
             const d = (dragData.difficulty || "").toLowerCase();
@@ -352,9 +386,7 @@
             }
 
             td.querySelector("input.status-val").value = status;
-
-            const indicator = td.querySelector(".status-indicator");
-            indicator.textContent = (status === "Completed") ? "✓" : "✗";
+            td.querySelector(".status-indicator").textContent = (status === "Completed") ? "✓" : "✗";
         }
 
         function clearCell(idx) {

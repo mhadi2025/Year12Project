@@ -11,8 +11,8 @@ using RevisionPlanner.Data;
 namespace RevisionPlanner.Migrations
 {
     [DbContext(typeof(RevisionPlannerDbContext))]
-    [Migration("20251214181833_AddExamDateToSubjects")]
-    partial class AddExamDateToSubjects
+    [Migration("20251214194637_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -85,8 +85,8 @@ namespace RevisionPlanner.Migrations
                     b.Property<int?>("SubjectId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("TimeTableDay")
-                        .HasColumnType("INTEGER");
+                    b.Property<DateTime>("TimeTableDate")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");

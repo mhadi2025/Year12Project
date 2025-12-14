@@ -1,0 +1,120 @@
+﻿@model RevisionPlanner.Models.ViewModels.DashboardViewModel
+
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<h2>Dashboard</h2>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <div class="fw-semibold">
+        Week: @Model.WeekStart.ToString("dd MMM yyyy") - @Model.WeekEnd.ToString("dd MMM yyyy")
+    </div>
+
+    <form class="ms-auto d-flex gap-2" method="get" asp-action="Index">
+        <input type="date" name="date" class="form-control" value="@Model.WeekStart.ToString("yyyy-MM-dd")" />
+        <button type="submit" class="btn btn-primary">Go</button>
+    </form>
+</div>
+
+<div class="row g-3">
+    <!-- Top 5 priorities -->
+    <div class="col-12 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Top 5 priorities this week</div>
+            <div class="card-body">
+                @if (!Model.Top5PrioritiesThisWeek.Any())
+                {
+                    <p class="text-muted mb-0">No priorities yet. Add subjects and exam dates, then schedule your week.</p>
+                }
+                else
+                {
+                    <ol class="mb-0">
+                        @foreach (var s in Model.Top5PrioritiesThisWeek)
+                        {
+                            <li class="mb-2">
+                                <div class="fw-semibold">@s.SubjectName</div>
+                                <small class="text-muted">
+                                    @(s.ExamDate.HasValue ? $"Exam: {s.ExamDate.Value:dd MMM yyyy}" : "Exam: not set")
+                                </small>
+                            </li>
+                        }
+                    </ol>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Exams next 7 days -->
+    <div class="col-12 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Exams next 7 days</div>
+            <div class="card-body">
+                @if (!Model.ExamsNext7Days.Any())
+                {
+                    <p class="text-muted mb-0">No exams in the next 7 days.</p>
+                }
+                else
+                {
+                    <ul class="list-group">
+                        @foreach (var s in Model.ExamsNext7Days)
+                        {
+                            var daysTo = (s.ExamDate!.Value.Date - DateTime.Today.Date).Days;
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold">@s.SubjectName</div>
+                                    <small class="text-muted">@s.ExamDate.Value.ToString("dd MMM yyyy")</small>
+                                </div>
+                                <span class="badge bg-secondary">
+                                    @(daysTo == 0 ? "Today" : daysTo == 1 ? "1 day" : $"{daysTo} days")
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Completion % by subject -->
+    <div class="col-12 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Completion % by subject (this week)</div>
+            <div class="card-body">
+                @if (!Model.CompletionBySubject.Any())
+                {
+                    <p class="text-muted mb-0">No scheduled slots this week yet.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th class="text-end">Done</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-end">%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in Model.CompletionBySubject)
+                                {
+                                    <tr>
+                                        <td>@r.SubjectName</td>
+                                        <td class="text-end">@r.CompletedSlots</td>
+                                        <td class="text-end">@r.ScheduledSlots</td>
+                                        <td class="text-end fw-semibold">@r.CompletionPercent%</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <small class="text-muted">
+                        Completion is calculated from timetable slot statuses (✓ Completed / ✗ Incomplete).
+                    </small>
+                }
+            </div>
+        </div>
+    </div>
+</div>

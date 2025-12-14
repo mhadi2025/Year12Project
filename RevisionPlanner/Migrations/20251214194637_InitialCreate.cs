@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -35,7 +36,8 @@ namespace RevisionPlanner.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     SubjectName = table.Column<string>(type: "TEXT", nullable: false),
-                    Difficulty = table.Column<int>(type: "INTEGER", nullable: false)
+                    Difficulty = table.Column<int>(type: "INTEGER", nullable: false),
+                    ExamDate = table.Column<DateTime>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -76,7 +78,7 @@ namespace RevisionPlanner.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
-                    TimeTableDay = table.Column<int>(type: "INTEGER", nullable: false),
+                    TimeTableDate = table.Column<DateTime>(type: "TEXT", nullable: false),
                     SlotNumber = table.Column<int>(type: "INTEGER", nullable: true),
                     SubjectId = table.Column<int>(type: "INTEGER", nullable: true),
                     Status = table.Column<string>(type: "TEXT", nullable: true)

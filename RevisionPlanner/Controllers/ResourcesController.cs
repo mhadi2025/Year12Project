@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -19,124 +18,144 @@ namespace RevisionPlanner.Controllers
             _context = context;
         }
 
+        private int? CurrentUserId => HttpContext.Session.GetInt32("UserId");
+
         // GET: Resources
         public async Task<IActionResult> Index()
         {
-            var revisionPlannerDbContext = _context.Resources.Include(r => r.Subject);
-            return View(await revisionPlannerDbContext.ToListAsync());
-        }
+            if (CurrentUserId == null)
+                return RedirectToAction("Login", "Account");
 
-        // GET: Resources/Details/5
-        public async Task<IActionResult> Details(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var resource = await _context.Resources
+            var resources = await _context.Resources
                 .Include(r => r.Subject)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (resource == null)
-            {
-                return NotFound();
-            }
+                .Where(r => r.Subject != null && r.Subject.UserId == CurrentUserId.Value)
+                .OrderBy(r => r.Subject!.SubjectName)
+                .ThenBy(r => r.Title)
+                .ToListAsync();
 
-            return View(resource);
+            return View(resources);
         }
 
         // GET: Resources/Create
-        public IActionResult Create()
+        public async Task<IActionResult> Create()
         {
-            ViewData["SubjectId"] = new SelectList(_context.Subjects, "Id", "Id");
-            return View();
+            if (CurrentUserId == null)
+                return RedirectToAction("Login", "Account");
+
+            await PopulateSubjectsDropdown();
+            return View(new Resource());
         }
 
         // POST: Resources/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,SubjectId,Title,Url")] Resource resource)
         {
+            if (CurrentUserId == null)
+                return RedirectToAction("Login", "Account");
+
+            // Validate subject belongs to current user
+            var subjectOk = await _context.Subjects.AnyAsync(s => s.Id == resource.SubjectId && s.UserId == CurrentUserId.Value);
+            if (!subjectOk)
+                ModelState.AddModelError(nameof(Resource.SubjectId), "Invalid subject selection.");
+
+            if (!IsValidHttpUrl(resource.Url))
+                ModelState.AddModelError(nameof(Resource.Url), "Please enter a valid URL starting with http:// or https://");
+
             if (ModelState.IsValid)
             {
+                resource.Title = (resource.Title ?? "").Trim();
+                resource.Url = (resource.Url ?? "").Trim();
+
                 _context.Add(resource);
                 await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = "Resource added successfully.";
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["SubjectId"] = new SelectList(_context.Subjects, "Id", "Id", resource.SubjectId);
+
+            await PopulateSubjectsDropdown(resource.SubjectId);
             return View(resource);
         }
 
         // GET: Resources/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (CurrentUserId == null)
+                return RedirectToAction("Login", "Account");
 
-            var resource = await _context.Resources.FindAsync(id);
-            if (resource == null)
-            {
-                return NotFound();
-            }
-            ViewData["SubjectId"] = new SelectList(_context.Subjects, "Id", "Id", resource.SubjectId);
+            if (id == null) return NotFound();
+
+            var resource = await _context.Resources
+                .Include(r => r.Subject)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (resource == null) return NotFound();
+
+            // Ensure it belongs to current user
+            if (resource.Subject == null || resource.Subject.UserId != CurrentUserId.Value)
+                return Forbid();
+
+            await PopulateSubjectsDropdown(resource.SubjectId);
             return View(resource);
         }
 
         // POST: Resources/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,SubjectId,Title,Url")] Resource resource)
         {
-            if (id != resource.Id)
-            {
-                return NotFound();
-            }
+            if (CurrentUserId == null)
+                return RedirectToAction("Login", "Account");
+
+            if (id != resource.Id) return NotFound();
+
+            // Load existing to check ownership
+            var existing = await _context.Resources
+                .Include(r => r.Subject)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (existing == null) return NotFound();
+            if (existing.Subject == null || existing.Subject.UserId != CurrentUserId.Value) return Forbid();
+
+            // Validate subject belongs to current user
+            var subjectOk = await _context.Subjects.AnyAsync(s => s.Id == resource.SubjectId && s.UserId == CurrentUserId.Value);
+            if (!subjectOk)
+                ModelState.AddModelError(nameof(Resource.SubjectId), "Invalid subject selection.");
+
+            if (!IsValidHttpUrl(resource.Url))
+                ModelState.AddModelError(nameof(Resource.Url), "Please enter a valid URL starting with http:// or https://");
 
             if (ModelState.IsValid)
             {
-                try
-                {
-                    _context.Update(resource);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!ResourceExists(resource.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
+                existing.SubjectId = resource.SubjectId;
+                existing.Title = (resource.Title ?? "").Trim();
+                existing.Url = (resource.Url ?? "").Trim();
+
+                await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = "Resource updated successfully.";
                 return RedirectToAction(nameof(Index));
             }
-            ViewData["SubjectId"] = new SelectList(_context.Subjects, "Id", "Id", resource.SubjectId);
+
+            await PopulateSubjectsDropdown(resource.SubjectId);
             return View(resource);
         }
 
         // GET: Resources/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (CurrentUserId == null)
+                return RedirectToAction("Login", "Account");
+
+            if (id == null) return NotFound();
 
             var resource = await _context.Resources
                 .Include(r => r.Subject)
                 .FirstOrDefaultAsync(m => m.Id == id);
-            if (resource == null)
-            {
-                return NotFound();
-            }
+
+            if (resource == null) return NotFound();
+
+            if (resource.Subject == null || resource.Subject.UserId != CurrentUserId.Value)
+                return Forbid();
 
             return View(resource);
         }
@@ -146,19 +165,40 @@ namespace RevisionPlanner.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
-            var resource = await _context.Resources.FindAsync(id);
-            if (resource != null)
-            {
-                _context.Resources.Remove(resource);
-            }
+            if (CurrentUserId == null)
+                return RedirectToAction("Login", "Account");
 
+            var resource = await _context.Resources
+                .Include(r => r.Subject)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (resource == null) return NotFound();
+            if (resource.Subject == null || resource.Subject.UserId != CurrentUserId.Value) return Forbid();
+
+            _context.Resources.Remove(resource);
             await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = "Resource deleted successfully.";
             return RedirectToAction(nameof(Index));
         }
 
-        private bool ResourceExists(int id)
+        private async Task PopulateSubjectsDropdown(int? selectedSubjectId = null)
         {
-            return _context.Resources.Any(e => e.Id == id);
+            var userId = CurrentUserId!.Value;
+            var subjects = await _context.Subjects
+                .Where(s => s.UserId == userId)
+                .OrderBy(s => s.SubjectName)
+                .Select(s => new { s.Id, s.SubjectName })
+                .ToListAsync();
+
+            ViewData["SubjectId"] = new SelectList(subjects, "Id", "SubjectName", selectedSubjectId);
+        }
+
+        private static bool IsValidHttpUrl(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return false;
+            return Uri.TryCreate(url.Trim(), UriKind.Absolute, out var u) &&
+                   (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps);
         }
     }
 }
