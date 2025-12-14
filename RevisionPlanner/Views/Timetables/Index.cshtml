@@ -109,7 +109,9 @@
                                         <input type="hidden" class="status-val" name="Cells[@idx].Status" value="@(cell.Status ?? "")" />
 
                                         <div class="subject-box @((subject != null) ? DifficultyClass(subject.Difficulty) : "")">
-                                            <div class="subject-box-top">
+
+                                            <!-- Top-right clear button (hidden if empty) -->
+                                            <div class="subject-box-top @(isEmpty ? "hide-controls" : "")">
                                                 <button type="button"
                                                         class="btn-clear"
                                                         title="Clear"
@@ -118,13 +120,14 @@
                                                 </button>
                                             </div>
 
-                                            <!-- no "Drop subject here" text -->
+                                            <!-- Subject name (blank when empty) -->
                                             <div class="subject-name">
                                                 @(subject != null ? subject.SubjectName : "")
                                             </div>
 
+                                            <!-- Status bottom-right (hidden if empty) -->
                                             <button type="button"
-                                                    class="status-pill"
+                                                    class="status-pill @(isEmpty ? "hide-controls" : "")"
                                                     title="Click to change status"
                                                     onclick="cycleStatus(@idx)">
                                                 @(
@@ -210,7 +213,6 @@
                             }
                         </div>
 
-                        <!-- Hint moved here -->
                         <div class="mt-3 small text-muted">
                             Tip: Drag a subject from above and drop it into a timetable cell.
                         </div>
@@ -225,7 +227,7 @@
     <style>
         /* Compact grid */
         .timetable-grid td {
-            min-width: 120px;
+            min-width: 115px;
             padding: 6px;
         }
 
@@ -248,9 +250,8 @@
             border: 1px solid rgba(0,0,0,.12);
             border-radius: 10px;
             background: #fff;
-            min-height: 62px;
+            min-height: 60px;
             padding: 6px;
-            font-size: 12px;
             text-align: left;
         }
 
@@ -275,23 +276,24 @@
         }
 
         .btn-clear {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             border-radius: 7px;
             border: 1px solid rgba(0,0,0,.18);
             background: #fff;
-            line-height: 16px;
-            font-size: 14px;
+            line-height: 14px;
+            font-size: 13px;
             padding: 0;
             cursor: pointer;
         }
 
-        /* Subject name left aligned, no bold */
+        /* Subject name in cell: 8px */
         .subject-name {
-            padding-right: 28px;
+            padding-right: 24px;
             color: rgba(0,0,0,.85);
             line-height: 1.1;
-            min-height: 14px; /* keeps layout stable when empty */
+            min-height: 12px;
+            font-size: 8px;
         }
 
         /* Status bottom-right */
@@ -299,19 +301,24 @@
             position: absolute;
             right: 6px;
             bottom: 6px;
-            width: 22px;
-            height: 20px;
+            width: 20px;
+            height: 18px;
             border-radius: 8px;
             border: 1px solid rgba(0,0,0,.18);
             background: #fff;
-            font-size: 12px;
-            line-height: 16px;
+            font-size: 11px;
+            line-height: 14px;
             padding: 0;
             cursor: pointer;
             text-align: center;
         }
 
-        /* Subject panel (smaller font) */
+        /* Hide controls in empty cells */
+        .hide-controls {
+            display: none !important;
+        }
+
+        /* Subject panel smaller */
         .subject-card {
             border: 1px solid rgba(0,0,0,.12);
             border-radius: 12px;
@@ -331,6 +338,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 4px;
+            font-size: 12px;
         }
 
         .subject-card-sub {
@@ -362,7 +370,6 @@
             background: #e74c3c;
         }
 
-        /* Exam badges */
         .exam-badge {
             padding: 2px 6px;
             border-radius: 999px;
@@ -381,7 +388,7 @@
             background: rgba(241,196,15,.25);
         }
 
-        /* Exam passed styling: grey */
+        /* Exam passed grey */
         .subject-passed {
             opacity: 0.55;
             filter: grayscale(1);
@@ -414,7 +421,7 @@
 
             if (!dragData || idx === undefined) return;
 
-            // Do not allow scheduling AFTER exam date (no exam date => allowed)
+            // Do not allow scheduling AFTER exam date
             if (dragData.examDate) {
                 const exam = new Date(dragData.examDate + "T00:00:00");
                 const cellDate = new Date(cellDateStr + "T00:00:00");
@@ -426,11 +433,9 @@
             }
 
             td.querySelector("input.subject-id").value = dragData.subjectId;
-
-            // set subject name (empty cells are blank)
             td.querySelector(".subject-name").textContent = dragData.subjectName;
 
-            // difficulty colour
+            // difficulty tint
             const box = td.querySelector(".subject-box");
             box.classList.remove("diff-easy", "diff-medium", "diff-hard");
             const d = (dragData.difficulty || "").toLowerCase();
@@ -438,11 +443,15 @@
             else if (d.includes("medium")) box.classList.add("diff-medium");
             else if (d.includes("hard")) box.classList.add("diff-hard");
 
+            // show controls now that cell has subject
+            td.querySelector(".subject-box-top").classList.remove("hide-controls");
+            td.querySelector(".status-pill").classList.remove("hide-controls");
+
             // remove tooltip once filled
             td.title = "";
         }
 
-        // Cycle: blank -> Completed(✓) -> Incomplete(✗) -> blank
+        // Cycle: blank -> Completed -> Incomplete -> blank
         function cycleStatus(idx) {
             const td = document.querySelector(`td.drop-cell[data-cell-index="${idx}"]`);
             if (!td) return;
@@ -472,7 +481,6 @@
 
             td.querySelector("input.subject-id").value = "";
             td.querySelector("input.status-val").value = "";
-
             td.querySelector(".subject-name").textContent = "";
 
             const box = td.querySelector(".subject-box");
@@ -480,7 +488,11 @@
 
             td.querySelector(".status-pill").textContent = "";
 
-            // restore tooltip on empty
+            // hide controls when empty
+            td.querySelector(".subject-box-top").classList.add("hide-controls");
+            td.querySelector(".status-pill").classList.add("hide-controls");
+
+            // restore tooltip
             td.title = "Drop subject here";
         }
 
