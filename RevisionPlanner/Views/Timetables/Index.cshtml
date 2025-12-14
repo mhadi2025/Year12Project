@@ -61,10 +61,10 @@
                 <table class="table table-bordered align-middle text-center timetable-grid">
                     <thead class="table-light">
                         <tr>
-                            <th style="width:90px;">Slot</th>
+                            <th class="slot-col">Slot</th>
                             @foreach (var d in days)
                             {
-                                <th>
+                                <th class="day-col">
                                     @d.ToString("ddd")<br />
                                     <small class="text-muted">@d.ToString("dd MMM")</small>
                                 </th>
@@ -76,7 +76,7 @@
                         @for (int slot = 1; slot <= Model.SlotsPerDay; slot++)
                         {
                             <tr>
-                                <th class="table-light">#@slot</th>
+                                <th class="table-light slot-col">#@slot</th>
 
                                 @foreach (var day in days)
                                 {
@@ -103,42 +103,35 @@
                                         <input type="hidden" class="subject-id" name="Cells[@idx].SubjectId" value="@(cell.SubjectId?.ToString() ?? "")" />
                                         <input type="hidden" class="status-val" name="Cells[@idx].Status" value="@(cell.Status ?? "")" />
 
-                                        <div class="cell-inner">
-                                            <div class="cell-subject @((subject != null) ? DifficultyClass(subject.Difficulty) : "")">
-                                                <span class="subject-name">
-                                                    @(subject != null ? subject.SubjectName : "Drop subject here")
-                                                </span>
-                                            </div>
+                                        <!-- Compact subject box (all controls inside) -->
+                                        <div class="subject-box @((subject != null) ? DifficultyClass(subject.Difficulty) : "")">
 
-                                            <div class="cell-status">
+                                            <!-- Top row: Clear button (top-right) -->
+                                            <div class="subject-box-top">
                                                 <button type="button"
-                                                        class="status-btn btn-complete"
-                                                        title="Mark completed"
-                                                        onclick="setStatus(@idx, 'Completed')">
-                                                    ✓
-                                                </button>
-
-                                                <button type="button"
-                                                        class="status-btn btn-incomplete"
-                                                        title="Mark incomplete"
-                                                        onclick="setStatus(@idx, 'Incomplete')">
-                                                    ✗
-                                                </button>
-
-                                                <span class="status-indicator">
-                                                    @(
-                                                                                                string.Equals(cell.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "✓" :
-                                                                                                string.Equals(cell.Status, "Incomplete", StringComparison.OrdinalIgnoreCase) ? "✗" : ""
-                                                                                                )
-                                                </span>
-                                            </div>
-
-                                            <div class="mt-2">
-                                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                        class="btn-clear"
+                                                        title="Clear"
                                                         onclick="clearCell(@idx)">
-                                                    Clear
+                                                    ×
                                                 </button>
                                             </div>
+
+                                            <!-- Subject name: left aligned under clear -->
+                                            <div class="subject-name">
+                                                @(subject != null ? subject.SubjectName : "Drop subject here")
+                                            </div>
+
+                                            <!-- Status: bottom-right, click-to-cycle -->
+                                            <button type="button"
+                                                    class="status-pill"
+                                                    title="Click to change status"
+                                                    onclick="cycleStatus(@idx)">
+                                                @(
+                                                                                        string.Equals(cell.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "✓" :
+                                                                                        string.Equals(cell.Status, "Incomplete", StringComparison.OrdinalIgnoreCase) ? "✗" :
+                                                                                        ""
+                                                                                        )
+                                            </button>
                                         </div>
 
                                     </td>
@@ -193,18 +186,18 @@
                                      data-subjectname="@s.SubjectName"
                                      data-difficulty="@s.Difficulty"
                                      data-examdate="@(s.ExamDate.HasValue? s.ExamDate.Value.ToString("yyyy-MM-dd") : "")">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span class="fw-semibold">@s.SubjectName</span>
+                                    <div class="subject-card-title">
+                                        <span>@s.SubjectName</span>
                                         <span class="difficulty-dot"></span>
                                     </div>
 
-                                    <small class="text-muted d-flex justify-content-between align-items-center">
+                                    <div class="subject-card-sub">
                                         <span>@(s.ExamDate.HasValue ? $"Exam: {s.ExamDate.Value:dd MMM yyyy}" : "Exam: not set")</span>
                                         @if (daysToExam.HasValue && daysToExam.Value >= 0 && daysToExam.Value <= 7)
                                         {
                                             <span class="exam-badge @badgeClass">@badgeText</span>
                                         }
-                                    </small>
+                                    </div>
                                 </div>
                             }
                         </div>
@@ -217,57 +210,130 @@
 
 @section Scripts {
     <style>
+        /* Compact grid */
         .timetable-grid td {
-            min-width: 160px;
+            min-width: 120px;
+            padding: 6px;
         }
 
-        .cell-inner {
-            padding: 10px;
+        .slot-col {
+            width: 70px;
+            font-size: 13px;
         }
 
-        .cell-subject {
+        .day-col {
+            font-size: 13px;
+        }
+
+        .drop-cell {
+            vertical-align: top;
+        }
+
+        /* Compact subject box */
+        .subject-box {
+            position: relative;
             border: 1px solid rgba(0,0,0,.12);
             border-radius: 10px;
-            padding: 10px;
             background: #fff;
-            min-height: 52px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
+            min-height: 62px;
+            padding: 6px;
+            font-size: 12px;
+            text-align: left;
         }
 
+        /* Difficulty background tint */
+        .diff-easy {
+            background: rgba(46, 204, 113, .16);
+        }
+
+        .diff-medium {
+            background: rgba(241, 196, 15, .20);
+        }
+
+        .diff-hard {
+            background: rgba(231, 76, 60, .16);
+        }
+
+        /* Top-right clear button */
+        .subject-box-top {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 2px;
+        }
+
+        .btn-clear {
+            width: 20px;
+            height: 20px;
+            border-radius: 7px;
+            border: 1px solid rgba(0,0,0,.18);
+            background: #fff;
+            line-height: 16px;
+            font-size: 14px;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        /* Subject name: left aligned, not bold */
+        .subject-name {
+            padding-right: 28px; /* space for clear */
+            color: rgba(0,0,0,.85);
+            line-height: 1.1;
+        }
+
+        /* Status: small, bottom-right inside box */
+        .status-pill {
+            position: absolute;
+            right: 6px;
+            bottom: 6px;
+            width: 22px;
+            height: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(0,0,0,.18);
+            background: #fff;
+            font-size: 12px;
+            line-height: 16px;
+            padding: 0;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        /* Subject panel: reduce font and padding */
         .subject-card {
             border: 1px solid rgba(0,0,0,.12);
             border-radius: 12px;
-            padding: 10px;
+            padding: 8px;
             background: #fff;
             cursor: grab;
             user-select: none;
+            font-size: 12px;
         }
 
             .subject-card:active {
                 cursor: grabbing;
             }
 
+        .subject-card-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .subject-card-sub {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            color: rgba(0,0,0,.55);
+            font-size: 11px;
+            flex-wrap: wrap;
+        }
+
         .difficulty-dot {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 4px;
             border: 1px solid rgba(0,0,0,.15);
             display: inline-block;
-        }
-
-        .diff-easy {
-            background: rgba(46, 204, 113, .20);
-        }
-
-        .diff-medium {
-            background: rgba(241, 196, 15, .25);
-        }
-
-        .diff-hard {
-            background: rgba(231, 76, 60, .20);
         }
 
         .subject-card.diff-easy .difficulty-dot {
@@ -282,42 +348,12 @@
             background: #e74c3c;
         }
 
-        .cell-status {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            justify-content: center;
-            margin-top: 10px;
-        }
-
-        .status-btn {
-            border: 1px solid rgba(0,0,0,.15);
-            border-radius: 10px;
-            width: 40px;
-            height: 36px;
-            background: #fff;
-            font-weight: 800;
-            line-height: 1;
-        }
-
-        .status-indicator {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
-            border: 1px solid rgba(0,0,0,.12);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 900;
-            background: #fff;
-        }
-
         .exam-badge {
-            padding: 4px 8px;
+            padding: 2px 6px;
             border-radius: 999px;
             border: 1px solid rgba(0,0,0,.12);
-            font-weight: 700;
-            font-size: 12px;
+            font-weight: 600;
+            font-size: 10px;
             background: #fff;
             white-space: nowrap;
         }
@@ -353,7 +389,7 @@
 
             if (!dragData || idx === undefined) return;
 
-            // Rule: do not allow scheduling AFTER exam date (subjects without exam date are allowed)
+            // Do not allow scheduling AFTER exam date (subjects without exam date are allowed)
             if (dragData.examDate) {
                 const exam = new Date(dragData.examDate + "T00:00:00");
                 const cellDate = new Date(cellDateStr + "T00:00:00");
@@ -365,17 +401,21 @@
             }
 
             td.querySelector("input.subject-id").value = dragData.subjectId;
+
+            // Set name
             td.querySelector(".subject-name").textContent = dragData.subjectName;
 
-            const cellBox = td.querySelector(".cell-subject");
-            cellBox.classList.remove("diff-easy", "diff-medium", "diff-hard");
+            // Set difficulty style on subject box
+            const box = td.querySelector(".subject-box");
+            box.classList.remove("diff-easy", "diff-medium", "diff-hard");
             const d = (dragData.difficulty || "").toLowerCase();
-            if (d.includes("easy")) cellBox.classList.add("diff-easy");
-            else if (d.includes("medium")) cellBox.classList.add("diff-medium");
-            else if (d.includes("hard")) cellBox.classList.add("diff-hard");
+            if (d.includes("easy")) box.classList.add("diff-easy");
+            else if (d.includes("medium")) box.classList.add("diff-medium");
+            else if (d.includes("hard")) box.classList.add("diff-hard");
         }
 
-        function setStatus(idx, status) {
+        // Cycle: blank -> Completed(✓) -> Incomplete(✗) -> blank
+        function cycleStatus(idx) {
             const td = document.querySelector(`td.drop-cell[data-cell-index="${idx}"]`);
             if (!td) return;
 
@@ -385,8 +425,18 @@
                 return;
             }
 
-            td.querySelector("input.status-val").value = status;
-            td.querySelector(".status-indicator").textContent = (status === "Completed") ? "✓" : "✗";
+            const statusInput = td.querySelector("input.status-val");
+            const btn = td.querySelector(".status-pill");
+            const cur = (statusInput.value || "").toLowerCase();
+
+            let next = "";
+            if (cur === "") next = "Completed";
+            else if (cur === "completed") next = "Incomplete";
+            else next = "";
+
+            statusInput.value = next;
+
+            btn.textContent = (next === "Completed") ? "✓" : (next === "Incomplete") ? "✗" : "";
         }
 
         function clearCell(idx) {
@@ -397,8 +447,11 @@
             td.querySelector("input.status-val").value = "";
 
             td.querySelector(".subject-name").textContent = "Drop subject here";
-            td.querySelector(".cell-subject").classList.remove("diff-easy", "diff-medium", "diff-hard");
-            td.querySelector(".status-indicator").textContent = "";
+
+            const box = td.querySelector(".subject-box");
+            box.classList.remove("diff-easy", "diff-medium", "diff-hard");
+
+            td.querySelector(".status-pill").textContent = "";
         }
 
         function formatDate(d) {
