@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using RevisionPlanner.Data;
 using RevisionPlanner.Enums;
@@ -38,7 +37,7 @@ namespace RevisionPlanner.Controllers
                 .Where(t => t.UserId == userId.Value && t.SlotNumber != null)
                 .OrderBy(t => t.TimeTableDay)
                 .ThenBy(t => t.SlotNumber)
-                .Select(t => new RevisionPlanner.Models.ViewModels.TimetableCell
+                .Select(t => new TimetableCell
                 {
                     TimetableId = t.Id,
                     Day = t.TimeTableDay,
@@ -48,7 +47,7 @@ namespace RevisionPlanner.Controllers
                 })
                 .ToListAsync();
 
-            var vm = new RevisionPlanner.Models.ViewModels.TimetableGridViewModel
+            var vm = new TimetableGridViewModel
             {
                 Subjects = subjects,
                 Cells = cells,
@@ -58,9 +57,12 @@ namespace RevisionPlanner.Controllers
             return View(vm);
         }
 
+        // =======================
+        // Save Timetable Grid
+        // =======================
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SaveGrid(RevisionPlanner.Models.ViewModels.TimetableGridViewModel vm)
+        public async Task<IActionResult> SaveGrid(TimetableGridViewModel vm)
         {
             var userId = HttpContext.Session.GetInt32("UserId");
             if (userId == null)
@@ -68,7 +70,9 @@ namespace RevisionPlanner.Controllers
 
             foreach (var cell in vm.Cells)
             {
-                var row = await _context.Timetables.FirstOrDefaultAsync(t => t.Id == cell.TimetableId && t.UserId == userId.Value);
+                var row = await _context.Timetables
+                    .FirstOrDefaultAsync(t => t.Id == cell.TimetableId && t.UserId == userId.Value);
+
                 if (row != null)
                 {
                     row.SubjectId = cell.SubjectId;
@@ -77,13 +81,13 @@ namespace RevisionPlanner.Controllers
             }
 
             await _context.SaveChangesAsync();
+
             TempData["SuccessMessage"] = "Timetable saved successfully.";
             return RedirectToAction("Index");
         }
 
-
         // =======================
-        // CREATE TIMETABLE
+        // CREATE TIMETABLE (GET)
         // =======================
         [HttpGet]
         public async Task<IActionResult> Create()
@@ -97,6 +101,15 @@ namespace RevisionPlanner.Controllers
                 .OrderBy(s => s.SubjectName)
                 .ToListAsync();
 
+            // ✅ NEW: find subjects already used in timetable
+            var usedSubjectIds = await _context.Timetables
+                .Where(t => t.UserId == userId.Value && t.SubjectId != null)
+                .Select(t => t.SubjectId!.Value)
+                .Distinct()
+                .ToListAsync();
+
+            ViewBag.UsedSubjectIds = usedSubjectIds;
+
             var vm = new CreateTimetableViewModel
             {
                 Subjects = existingSubjects.Select(s => new SubjectRow
@@ -109,15 +122,15 @@ namespace RevisionPlanner.Controllers
 
             if (!vm.Subjects.Any())
             {
-                vm.Subjects.Add(new SubjectRow
-                {
-                    Difficulty = DifficultyLevel.Easy
-                });
+                vm.Subjects.Add(new SubjectRow { Difficulty = DifficultyLevel.Easy });
             }
 
             return View(vm);
         }
 
+        // =======================
+        // CREATE TIMETABLE (POST)
+        // =======================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateTimetableViewModel vm)
@@ -146,8 +159,35 @@ namespace RevisionPlanner.Controllers
                 .Where(s => !submittedIds.Contains(s.Id))
                 .ToList();
 
+            // ✅ SERVER-SIDE ENFORCEMENT
             if (toDelete.Any())
+            {
+                var toDeleteIds = toDelete.Select(s => s.Id).ToList();
+
+                var referencedIds = await _context.Timetables
+                    .Where(t => t.UserId == userId.Value
+                                && t.SubjectId != null
+                                && toDeleteIds.Contains(t.SubjectId.Value))
+                    .Select(t => t.SubjectId!.Value)
+                    .Distinct()
+                    .ToListAsync();
+
+                if (referencedIds.Any())
+                {
+                    var referencedNames = toDelete
+                        .Where(s => referencedIds.Contains(s.Id))
+                        .Select(s => s.SubjectName);
+
+                    ModelState.AddModelError(string.Empty,
+                        "You cannot delete these subjects because they are used in your timetable: "
+                        + string.Join(", ", referencedNames)
+                        + ". Remove them from the timetable first.");
+
+                    return View(vm);
+                }
+
                 _context.Subjects.RemoveRange(toDelete);
+            }
 
             foreach (var row in vm.Subjects)
             {
@@ -170,26 +210,11 @@ namespace RevisionPlanner.Controllers
 
             await _context.SaveChangesAsync();
 
-            // =======================
-            // Initialise Timetable Grid (ONCE)
-            // =======================
+            // Initialise timetable once
             const int slotsPerDay = 8;
+            var days = Enum.GetValues<DayOfWeek>();
 
-            var days = new[]
-            {
-                DayOfWeek.Monday,
-                DayOfWeek.Tuesday,
-                DayOfWeek.Wednesday,
-                DayOfWeek.Thursday,
-                DayOfWeek.Friday,
-                DayOfWeek.Saturday,
-                DayOfWeek.Sunday
-            };
-
-            var hasSlots = await _context.Timetables
-                .AnyAsync(t => t.UserId == userId.Value);
-
-            if (!hasSlots)
+            if (!await _context.Timetables.AnyAsync(t => t.UserId == userId.Value))
             {
                 foreach (var day in days)
                 {
@@ -199,22 +224,14 @@ namespace RevisionPlanner.Controllers
                         {
                             UserId = userId.Value,
                             TimeTableDay = day,
-                            SlotNumber = slot,
-                            SubjectId = null,
-                            Status = null
+                            SlotNumber = slot
                         });
                     }
                 }
-
                 await _context.SaveChangesAsync();
             }
 
             return RedirectToAction("Index", "Timetables");
-        }
-
-        private bool TimetableExists(int id)
-        {
-            return _context.Timetables.Any(e => e.Id == id);
         }
     }
 }

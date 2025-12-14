@@ -1,8 +1,27 @@
 ﻿@model RevisionPlanner.Models.ViewModels.CreateTimetableViewModel
 @using RevisionPlanner.Enums
+@using System.Collections.Generic
 
 @{
     ViewData["Title"] = "Create Timetable";
+
+    var usedIds = ViewBag.UsedSubjectIds as List<int> ?? new List<int>();
+    var usedSet = new HashSet<int>(usedIds);
+
+    // "Create" vs "Update" button label based on whether DB already had subjects
+    // (If the page loaded with 1 default empty row, Id will be 0, so it's still "Create")
+    var hasExistingSubjects = Model.Subjects.Any(s => s.Id != 0);
+    var submitLabel = hasExistingSubjects ? "Update Timetable" : "Create Timetable";
+
+    string DotClass(DifficultyLevel d) =>
+        d == DifficultyLevel.Easy ? "dot-easy" :
+        d == DifficultyLevel.Medium ? "dot-medium" :
+        "dot-hard";
+
+    string BorderClass(DifficultyLevel d) =>
+        d == DifficultyLevel.Easy ? "border-easy" :
+        d == DifficultyLevel.Medium ? "border-medium" :
+        "border-hard";
 }
 
 <h2>Create Timetable</h2>
@@ -13,7 +32,8 @@
 <form asp-action="Create" method="post">
     @Html.AntiForgeryToken()
 
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+    <!-- show global errors (e.g., cannot delete used subjects) -->
+    <div asp-validation-summary="All" class="text-danger mb-3"></div>
 
     <table class="table align-middle">
         <thead>
@@ -27,20 +47,26 @@
         <tbody id="subjectRows">
             @for (int i = 0; i < Model.Subjects.Count; i++)
             {
+                var subjectId = Model.Subjects[i].Id;
+                var isUsed = subjectId != 0 && usedSet.Contains(subjectId);
+
                 <tr class="subject-row">
                     <td>
                         <input type="hidden" asp-for="Subjects[@i].Id" />
                         <input asp-for="Subjects[@i].SubjectName"
                                class="form-control"
-                               placeholder="e.g. Maths" />
+                               placeholder="e.g., Maths" />
+                        <span asp-validation-for="Subjects[@i].SubjectName" class="text-danger"></span>
                     </td>
 
                     <td>
                         <div class="d-flex align-items-center gap-3">
-                            <span class="difficulty-dot"></span>
+                            <!-- colour indicator -->
+                            <span class="difficulty-dot @DotClass(Model.Subjects[i].Difficulty)"></span>
 
+                            <!-- dropdown with coloured border -->
                             <select asp-for="Subjects[@i].Difficulty"
-                                    class="form-select difficulty-select"
+                                    class="form-select difficulty-select @BorderClass(Model.Subjects[i].Difficulty)"
                                     asp-items="Html.GetEnumSelectList<DifficultyLevel>()">
                             </select>
                         </div>
@@ -48,7 +74,9 @@
 
                     <td class="text-end">
                         <button type="button"
-                                class="btn btn-outline-danger btn-sm delete-row">
+                                class="btn btn-outline-danger btn-sm delete-row"
+                                title="@(isUsed ? "This subject is being used in the timetable" : "Delete")"
+                                @(isUsed ? "disabled" : "")>
                             ✕
                         </button>
                     </td>
@@ -63,7 +91,7 @@
         </button>
 
         <button type="submit" class="btn btn-primary">
-            Create Timetable
+            @submitLabel
         </button>
     </div>
 </form>
@@ -76,20 +104,39 @@
             width: 14px;
             height: 14px;
             border-radius: 4px;
-            border: 1px solid rgba(0,0,0,.15);
             display: inline-block;
+            border: 1px solid rgba(0,0,0,.15);
         }
 
         .dot-easy {
             background: #2ecc71;
         }
-
+        /* green */
         .dot-medium {
             background: #f1c40f;
         }
-
+        /* yellow */
         .dot-hard {
             background: #e74c3c;
+        }
+        /* red */
+
+        /* Dropdown border colours */
+        .border-easy {
+            border: 2px solid #2ecc71 !important;
+        }
+
+        .border-medium {
+            border: 2px solid #f1c40f !important;
+        }
+
+        .border-hard {
+            border: 2px solid #e74c3c !important;
+        }
+
+        /* keep focus looking nice with the coloured border */
+        .difficulty-select:focus {
+            box-shadow: 0 0 0 0.2rem rgba(0,0,0,.08) !important;
         }
     </style>
 
@@ -98,68 +145,105 @@
             const tbody = document.getElementById("subjectRows");
             const addBtn = document.getElementById("addRow");
 
-            function setColour(row) {
+            function normalizeDifficultyValue(val) {
+                // Handles both "Easy" and "1" (enum numeric)
+                const v = (val ?? "").toString().toLowerCase().trim();
+                if (v === "1" || v.includes("easy")) return "easy";
+                if (v === "2" || v.includes("medium")) return "medium";
+                if (v === "3" || v.includes("hard")) return "hard";
+                return "";
+            }
+
+            function applyDifficultyStyles(row) {
                 const select = row.querySelector(".difficulty-select");
                 const dot = row.querySelector(".difficulty-dot");
-                dot.className = "difficulty-dot";
+                if (!select || !dot) return;
 
-                if (select.value.includes("Easy")) dot.classList.add("dot-easy");
-                if (select.value.includes("Medium")) dot.classList.add("dot-medium");
-                if (select.value.includes("Hard")) dot.classList.add("dot-hard");
+                // reset dot
+                dot.classList.remove("dot-easy", "dot-medium", "dot-hard");
+
+                // reset select border classes
+                select.classList.remove("border-easy", "border-medium", "border-hard");
+
+                const d = normalizeDifficultyValue(select.value);
+                if (d === "easy") {
+                    dot.classList.add("dot-easy");
+                    select.classList.add("border-easy");
+                }
+                else if (d === "medium") {
+                    dot.classList.add("dot-medium");
+                    select.classList.add("border-medium");
+                }
+                else if (d === "hard") {
+                    dot.classList.add("dot-hard");
+                    select.classList.add("border-hard");
+                }
             }
 
             function wireRow(row) {
-                setColour(row);
+                applyDifficultyStyles(row);
 
-                row.querySelector(".difficulty-select")
-                    .addEventListener("change", () => setColour(row));
+                const select = row.querySelector(".difficulty-select");
+                if (select) {
+                    select.addEventListener("change", () => applyDifficultyStyles(row));
+                }
 
-                row.querySelector(".delete-row")
-                    .addEventListener("click", () => {
+                const del = row.querySelector(".delete-row");
+                if (del) {
+                    del.addEventListener("click", () => {
+                        if (del.disabled) return;
                         row.remove();
                         reindex();
                     });
+                }
             }
 
             function reindex() {
-                tbody.querySelectorAll(".subject-row").forEach((row, i) => {
+                const rows = tbody.querySelectorAll("tr.subject-row");
+                rows.forEach((row, i) => {
                     row.querySelectorAll("input, select").forEach(el => {
-                        el.name = el.name.replace(/Subjects\[\d+\]/, `Subjects[${i}]`);
+                        if (el.name) el.name = el.name.replace(/Subjects\[\d+\]/g, `Subjects[${i}]`);
+                        if (el.id) el.id = el.id.replace(/Subjects_\d+__/g, `Subjects_${i}__`);
                     });
                 });
             }
 
             addBtn.addEventListener("click", () => {
-                const index = tbody.children.length;
+                const index = tbody.querySelectorAll("tr.subject-row").length;
 
-                const row = document.createElement("tr");
-                row.className = "subject-row";
-                row.innerHTML = `
+                const tr = document.createElement("tr");
+                tr.className = "subject-row";
+                tr.innerHTML = `
                     <td>
                         <input type="hidden" name="Subjects[${index}].Id" value="0" />
-                        <input name="Subjects[${index}].SubjectName" class="form-control" />
+                        <input name="Subjects[${index}].SubjectName" class="form-control" placeholder="e.g., Science" />
                     </td>
                     <td>
                         <div class="d-flex align-items-center gap-3">
-                            <span class="difficulty-dot"></span>
+                            <span class="difficulty-dot dot-easy"></span>
                             <select name="Subjects[${index}].Difficulty"
-                                    class="form-select difficulty-select">
-                                <option>Easy</option>
-                                <option>Medium</option>
-                                <option>Hard</option>
+                                    class="form-select difficulty-select border-easy">
+                                <option value="Easy">Easy</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Hard">Hard</option>
                             </select>
                         </div>
                     </td>
                     <td class="text-end">
                         <button type="button"
-                                class="btn btn-outline-danger btn-sm delete-row">✕</button>
+                                class="btn btn-outline-danger btn-sm delete-row"
+                                title="Delete">
+                            ✕
+                        </button>
                     </td>
                 `;
-                tbody.appendChild(row);
-                wireRow(row);
+
+                tbody.appendChild(tr);
+                wireRow(tr);
             });
 
-            tbody.querySelectorAll(".subject-row").forEach(wireRow);
+            // Initialise existing rows
+            tbody.querySelectorAll("tr.subject-row").forEach(wireRow);
         })();
     </script>
 }

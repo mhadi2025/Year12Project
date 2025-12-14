@@ -1,11 +1,22 @@
 ﻿@model RevisionPlanner.Models.ViewModels.TimetableGridViewModel
+@using RevisionPlanner.Enums
 
 @{
     ViewData["Title"] = "View / Edit Timetable";
+
     var days = new[] {
         DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday,
         DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
     };
+
+    string DifficultyClass(DifficultyLevel d) =>
+        d == DifficultyLevel.Easy ? "diff-easy" :
+        d == DifficultyLevel.Medium ? "diff-medium" : "diff-hard";
+
+    string StatusBadge(string? status) =>
+        string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase) ? "status-completed" :
+        string.Equals(status, "Incomplete", StringComparison.OrdinalIgnoreCase) ? "status-incomplete" :
+        "status-none";
 }
 
 <h2>View / Edit Timetable</h2>
@@ -19,10 +30,10 @@
     @Html.AntiForgeryToken()
 
     <div class="row g-3">
-        <!-- Timetable Grid -->
+        <!-- GRID -->
         <div class="col-12 col-lg-9">
             <div class="table-responsive">
-                <table class="table table-bordered align-middle text-center">
+                <table class="table table-bordered align-middle text-center timetable-grid">
                     <thead class="table-light">
                         <tr>
                             <th style="width:90px;">Slot</th>
@@ -32,6 +43,7 @@
                             }
                         </tr>
                     </thead>
+
                     <tbody>
                         @for (int slot = 1; slot <= Model.SlotsPerDay; slot++)
                         {
@@ -40,30 +52,71 @@
 
                                 @foreach (var day in days)
                                 {
+                                    // Find cell
                                     var cell = Model.Cells.FirstOrDefault(c => c.Day == day && c.SlotNumber == slot);
+                                    if (cell == null)
+                                    {
+                                        <td class="text-muted">N/A</td>
+                                        continue;
+                                    }
 
-                                    <td>
-                                        @if (cell != null)
-                                        {
-                                            <input type="hidden" name="Cells[@Model.Cells.IndexOf(cell)].TimetableId" value="@cell.TimetableId" />
-                                            <input type="hidden" name="Cells[@Model.Cells.IndexOf(cell)].Day" value="@cell.Day" />
-                                            <input type="hidden" name="Cells[@Model.Cells.IndexOf(cell)].SlotNumber" value="@cell.SlotNumber" />
+                                    var idx = Model.Cells.IndexOf(cell);
+                                    var subject = Model.Subjects.FirstOrDefault(s => s.Id == cell.SubjectId);
 
-                                            <select class="form-select"
-                                                    name="Cells[@Model.Cells.IndexOf(cell)].SubjectId">
-                                                <option value="">-- Select --</option>
-                                                @foreach (var s in Model.Subjects)
-                                                {
-                                                    <option value="@s.Id" selected="@(cell.SubjectId == s.Id)">
-                                                        @s.SubjectName
-                                                    </option>
-                                                }
-                                            </select>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">N/A</span>
-                                        }
+                                    <td class="drop-cell"
+                                        data-cell-index="@idx"
+                                        ondragover="event.preventDefault();"
+                                        ondrop="handleDrop(event);">
+
+                                        <!-- hidden fields for binding -->
+                                        <input type="hidden" name="Cells[@idx].TimetableId" value="@cell.TimetableId" />
+                                        <input type="hidden" name="Cells[@idx].Day" value="@cell.Day" />
+                                        <input type="hidden" name="Cells[@idx].SlotNumber" value="@cell.SlotNumber" />
+                                        <input type="hidden" class="subject-id" name="Cells[@idx].SubjectId" value="@(cell.SubjectId?.ToString() ?? "")" />
+                                        <input type="hidden" class="status-val" name="Cells[@idx].Status" value="@(cell.Status ?? "")" />
+
+                                        <div class="cell-inner">
+                                            <!-- Subject display area -->
+                                            <div class="cell-subject @((subject != null) ? DifficultyClass(subject.Difficulty) : "")">
+                                                <span class="subject-name">
+                                                    @(subject != null ? subject.SubjectName : "Drop subject here")
+                                                </span>
+                                            </div>
+
+                                            <!-- Status controls -->
+                                            <div class="cell-status">
+                                                <button type="button"
+                                                        class="status-btn btn-complete"
+                                                        title="Mark completed"
+                                                        onclick="setStatus(@idx, 'Completed')">
+                                                    ✓
+                                                </button>
+
+                                                <button type="button"
+                                                        class="status-btn btn-incomplete"
+                                                        title="Mark incomplete"
+                                                        onclick="setStatus(@idx, 'Incomplete')">
+                                                    ✗
+                                                </button>
+
+                                                <span class="status-indicator @StatusBadge(cell.Status)">
+                                                    @(
+                                                                                                string.Equals(cell.Status, "Completed", StringComparison.OrdinalIgnoreCase) ? "✓" :
+                                                                                                string.Equals(cell.Status, "Incomplete", StringComparison.OrdinalIgnoreCase) ? "✗" :
+                                                                                                ""
+                                                                                                )
+                                                </span>
+                                            </div>
+
+                                            <!-- Clear -->
+                                            <div class="mt-2">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                        onclick="clearCell(@idx)">
+                                                    Clear
+                                                </button>
+                                            </div>
+                                        </div>
+
                                     </td>
                                 }
                             </tr>
@@ -77,11 +130,11 @@
             </button>
         </div>
 
-        <!-- Subject list -->
+        <!-- SUBJECTS PANEL -->
         <div class="col-12 col-lg-3">
-            <div class="card">
+            <div class="card shadow-sm">
                 <div class="card-header">
-                    Subjects
+                    Subjects (Drag & Drop)
                 </div>
                 <div class="card-body">
                     @if (!Model.Subjects.Any())
@@ -90,18 +143,238 @@
                     }
                     else
                     {
-                        <ul class="list-group">
+                        <div class="d-grid gap-2">
                             @foreach (var s in Model.Subjects)
                             {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span>@s.SubjectName</span>
-                                    <span class="badge bg-secondary">@s.Difficulty</span>
-                                </li>
+                                <div class="subject-card @DifficultyClass(s.Difficulty)"
+                                     draggable="true"
+                                     ondragstart="handleDragStart(event)"
+                                     data-subjectid="@s.Id"
+                                     data-subjectname="@s.SubjectName"
+                                     data-difficulty="@s.Difficulty">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-semibold">@s.SubjectName</span>
+                                        <span class="difficulty-dot"></span>
+                                    </div>
+                                    <small class="text-muted">@s.Difficulty</small>
+                                </div>
                             }
-                        </ul>
+                        </div>
                     }
                 </div>
+            </div>
+
+            <div class="mt-3 small text-muted">
+                <div><span class="legend-dot diff-easy"></span> Easy</div>
+                <div><span class="legend-dot diff-medium"></span> Medium</div>
+                <div><span class="legend-dot diff-hard"></span> Hard</div>
             </div>
         </div>
     </div>
 </form>
+
+@section Scripts {
+    <style>
+        .timetable-grid td {
+            min-width: 160px;
+        }
+
+        .cell-inner {
+            padding: 10px;
+        }
+
+        .cell-subject {
+            border: 1px solid rgba(0,0,0,.12);
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .subject-card {
+            border: 1px solid rgba(0,0,0,.12);
+            border-radius: 12px;
+            padding: 10px;
+            background: #fff;
+            cursor: grab;
+            user-select: none;
+        }
+
+            .subject-card:active {
+                cursor: grabbing;
+            }
+
+        .difficulty-dot, .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+            border: 1px solid rgba(0,0,0,.15);
+            display: inline-block;
+        }
+
+        .legend-dot {
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        /* Difficulty colour blocks */
+        .diff-easy {
+            background: rgba(46, 204, 113, .20);
+        }
+
+        .diff-medium {
+            background: rgba(241, 196, 15, .25);
+        }
+
+        .diff-hard {
+            background: rgba(231, 76, 60, .20);
+        }
+
+        .subject-card.diff-easy .difficulty-dot {
+            background: #2ecc71;
+        }
+
+        .subject-card.diff-medium .difficulty-dot {
+            background: #f1c40f;
+        }
+
+        .subject-card.diff-hard .difficulty-dot {
+            background: #e74c3c;
+        }
+
+        .cell-status {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .status-btn {
+            border: 1px solid rgba(0,0,0,.15);
+            border-radius: 10px;
+            width: 40px;
+            height: 36px;
+            background: #fff;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .status-indicator {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,.12);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            background: #fff;
+        }
+
+        .status-completed {
+            background: rgba(25, 135, 84, .20);
+        }
+
+        .status-incomplete {
+            background: rgba(220, 53, 69, .18);
+        }
+
+        .status-none {
+            background: #fff;
+        }
+
+        .drop-cell.drag-over {
+            outline: 3px dashed rgba(13,110,253,.4);
+            outline-offset: -6px;
+        }
+    </style>
+
+    <script>
+        // store dragged subject data
+        let dragData = null;
+
+        function handleDragStart(ev) {
+            const el = ev.currentTarget;
+            dragData = {
+                subjectId: el.dataset.subjectid,
+                subjectName: el.dataset.subjectname,
+                difficulty: el.dataset.difficulty
+            };
+            ev.dataTransfer.effectAllowed = "copy";
+        }
+
+        function handleDrop(ev) {
+            ev.preventDefault();
+            const td = ev.currentTarget;
+            const idx = td.dataset.cellIndex;
+            if (!dragData || idx === undefined) return;
+
+            // Update hidden SubjectId
+            const subjectInput = td.querySelector("input.subject-id");
+            subjectInput.value = dragData.subjectId;
+
+            // Update UI label
+            const nameSpan = td.querySelector(".subject-name");
+            nameSpan.textContent = dragData.subjectName;
+
+            // Update difficulty colouring on cell
+            const cellBox = td.querySelector(".cell-subject");
+            cellBox.classList.remove("diff-easy", "diff-medium", "diff-hard");
+            const d = (dragData.difficulty || "").toLowerCase();
+            if (d.includes("easy")) cellBox.classList.add("diff-easy");
+            else if (d.includes("medium")) cellBox.classList.add("diff-medium");
+            else if (d.includes("hard")) cellBox.classList.add("diff-hard");
+        }
+
+        function setStatus(idx, status) {
+            const td = document.querySelector(`td.drop-cell[data-cell-index="${idx}"]`);
+            if (!td) return;
+
+            // If no subject selected, don't allow status (optional rule)
+            const subjectId = td.querySelector("input.subject-id").value;
+            if (!subjectId) {
+                alert("Please drop a subject first.");
+                return;
+            }
+
+            // Set hidden status
+            td.querySelector("input.status-val").value = status;
+
+            // Update indicator
+            const indicator = td.querySelector(".status-indicator");
+            indicator.classList.remove("status-completed", "status-incomplete", "status-none");
+
+            if (status === "Completed") {
+                indicator.textContent = "✓";
+                indicator.classList.add("status-completed");
+            } else {
+                indicator.textContent = "✗";
+                indicator.classList.add("status-incomplete");
+            }
+        }
+
+        function clearCell(idx) {
+            const td = document.querySelector(`td.drop-cell[data-cell-index="${idx}"]`);
+            if (!td) return;
+
+            td.querySelector("input.subject-id").value = "";
+            td.querySelector("input.status-val").value = "";
+
+            const nameSpan = td.querySelector(".subject-name");
+            nameSpan.textContent = "Drop subject here";
+
+            const cellBox = td.querySelector(".cell-subject");
+            cellBox.classList.remove("diff-easy", "diff-medium", "diff-hard");
+
+            const indicator = td.querySelector(".status-indicator");
+            indicator.textContent = "";
+            indicator.classList.remove("status-completed", "status-incomplete");
+            indicator.classList.add("status-none");
+        }
+    </script>
+}
